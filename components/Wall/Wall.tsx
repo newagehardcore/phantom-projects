@@ -184,6 +184,7 @@ export default function Wall({
   useEffect(() => {
     let rafId: number
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches
 
     // Per-tile animated state — lives in closure so it persists across frames
     const hoverScale    = new Map<string, number>()  // current animated scale (1 = rest)
@@ -211,7 +212,7 @@ export default function Wall({
         applyWorld()
       }
 
-      if (prefersReduced) {
+      if (prefersReduced || isTouchDevice) {
         rafId = requestAnimationFrame(tick)
         return
       }
