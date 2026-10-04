@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { PatchEvent, set, type ArrayOfObjectsInputProps } from 'sanity'
+import { useRef, useState } from 'react'
+import { PatchEvent, set, useClient, type ArrayOfObjectsInputProps } from 'sanity'
 
 type Photo = {
   _key: string
@@ -39,10 +39,43 @@ function sourceDimensions(photo: Photo) {
 }
 
 export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>) {
+  const client = useClient({ apiVersion: '2024-01-01' })
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [uploading, setUploading] = useState('')
+  const [uploadError, setUploadError] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [cropKey, setCropKey] = useState<string | null>(null)
   const [thumbnailSize, setThumbnailSize] = useState(210)
   const photos = (props.value ?? []) as Photo[]
+
+  const uploadImages = async (files: FileList | File[]) => {
+    const imageExtension = /\.(png|jpe?g|gif|webp|avif|tiff?|bmp)$/i
+    const selected = Array.from(files).filter((file) => file.type.startsWith('image/') || imageExtension.test(file.name))
+    if (!selected.length) {
+      setUploadError('Choose image files to upload.')
+      return
+    }
+
+    setUploadError('')
+    for (let index = 0; index < selected.length; index += 1) {
+      const file = selected[index]
+      setUploading(`Uploading ${index + 1} of ${selected.length}: ${file.name}`)
+      try {
+        const asset = await client.assets.upload('image', file, { filename: file.name, contentType: file.type || undefined })
+        props.onItemAppend({
+          _key: crypto.randomUUID().replaceAll('-', ''),
+          _type: 'image',
+          asset: { _ref: asset._id },
+          hotspot: { x: 0.5, y: 0.25, width: 1, height: 1 },
+          displayRole: 'both',
+        })
+      } catch {
+        setUploadError(`Could not upload ${file.name}. Check your connection and try again.`)
+      }
+    }
+    setUploading('')
+  }
 
   const cropPhoto = photos.find((photo) => photo._key === cropKey)
   const saveFocalPoint = (key: string, x: number, y: number) => {
@@ -63,15 +96,6 @@ export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>
     props.onItemMove({ fromIndex: dragIndex, toIndex })
     setDragIndex(null)
   }
-
-  // Keep Sanity's native multi-file uploader and drop target, while omitting
-  // its duplicate list of image cards from the compact upload area.
-  const uploadArea = props.renderDefault({
-    ...props,
-    members: [],
-    value: [],
-    schemaType: { ...props.schemaType, placeholder: 'Drop images here or choose files below' },
-  })
 
   return (
     <div>
@@ -110,10 +134,27 @@ export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>
           )
         })}
       </div>
-      <section aria-label="Add photos" style={{ marginTop: 18, padding: 14, border: '1px dashed #777', borderRadius: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Add photos</div>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Select multiple images or drag and drop them here.</div>
-        {uploadArea}
+      <section aria-label="Add photos" style={{ marginTop: 14, padding: '20px 16px', border: `1px dashed ${dragging ? '#7a9cff' : '#777'}`, borderRadius: 8, background: dragging ? 'rgba(122,156,255,.08)' : 'transparent', textAlign: 'center', cursor: 'pointer' }}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('button, input')) return
+          if (!uploading) fileInput.current?.click()
+        }}
+        onDragEnter={(event) => { event.preventDefault(); setDragging(true) }}
+        onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false) }}
+        onDrop={(event) => { event.preventDefault(); setDragging(false); void uploadImages(event.dataTransfer.files) }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Drop image files here</div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Upload one or more image files, or choose them from your device.</div>
+        <button type="button" onClick={() => fileInput.current?.click()} disabled={Boolean(uploading)} style={{ border: 0, borderRadius: 5, padding: '8px 14px', cursor: 'pointer' }}>
+          Choose image files
+        </button>
+        <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(event) => {
+          if (event.currentTarget.files) void uploadImages(event.currentTarget.files)
+          event.currentTarget.value = ''
+        }} />
+        {uploading && <div role="status" style={{ marginTop: 10, fontSize: 12 }}>{uploading}</div>}
+        {uploadError && <div role="alert" style={{ marginTop: 10, color: '#e88', fontSize: 12 }}>{uploadError}</div>}
       </section>
       {cropPhoto && (
         <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCropKey(null) }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 24, background: 'rgba(0,0,0,.72)' }}>
@@ -182,3 +223,5 @@ const scaleButtonStyle: React.CSSProperties = {
   lineHeight: '26px',
   cursor: 'pointer',
 }
+
+

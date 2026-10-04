@@ -1,5 +1,6 @@
 import { defineType, defineField } from 'sanity'
 import PhotoGalleryInput from '../components/PhotoGalleryInput'
+import { AudioDropInput, VideoDropInput } from '../components/MediaDropInput'
 import MonthYearInput from '../components/MonthYearInput'
 
 export const projectSchema = defineType({
@@ -208,6 +209,7 @@ export const projectSchema = defineType({
       name: 'videos',
       title: 'Videos',
       type: 'array',
+      components: { input: VideoDropInput },
       of: [
         {
           type: 'object',
@@ -247,6 +249,7 @@ export const projectSchema = defineType({
       name: 'audio',
       title: 'Audio',
       type: 'array',
+      components: { input: AudioDropInput },
       of: [
         {
           type: 'object',
@@ -279,3 +282,4 @@ export const projectSchema = defineType({
     }),
   ],
 })
+

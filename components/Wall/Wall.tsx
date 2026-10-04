@@ -63,6 +63,12 @@ export default function Wall({
 
   const [ready, setReady] = useState(false)
 
+  // Always reveal the stage after the first client commit. The GSAP intro is
+  // optional polish; a failed animation setup must never leave a black screen.
+  useEffect(() => {
+    setReady(true)
+  }, [])
+
   function wrapCam() {
     const { w: sw, h: sh } = singleSize.current
     if (!sw || !sh) return
@@ -441,7 +447,7 @@ export default function Wall({
           overflow: 'hidden',
           touchAction: 'none',
           background: '#000',
-          opacity: ready ? undefined : 0,
+          opacity: ready ? undefined : 1,
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
