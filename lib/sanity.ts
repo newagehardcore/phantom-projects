@@ -20,7 +20,15 @@ export function urlFor(source: unknown) {
 }
 
 export async function fetchProjects(): Promise<Project[]> {
-  const projects = await sanityClient.withConfig({ useCdn: false }).fetch(`
+  type RawProject = Omit<Project, 'thumbnails'> & {
+    thumbnails: Array<Project['thumbnails'][number] & {
+      asset?: unknown
+      crop?: unknown
+      hotspot?: unknown
+    }>
+  }
+
+  const projects = await sanityClient.withConfig({ useCdn: false }).fetch<RawProject[]>(`
     *[_type == "project"] | order(order asc) {
       _id,
       "id": _id,
@@ -83,7 +91,7 @@ export async function fetchProjects(): Promise<Project[]> {
     links: project.links ?? [],
     thumbnails: (project.thumbnails ?? []).map((thumb) => {
       if (thumb.type === 'video') return thumb
-      const source = thumb as typeof thumb & { asset?: unknown; crop?: unknown; hotspot?: unknown }
+      const source = thumb
       return {
         ...thumb,
         url: source.asset

@@ -177,7 +177,7 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
             {/* Meta grid */}
             <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {project.date && <Meta label="Date" value={project.date} />}
-              <MetaFilter label="Type" items={project.type} onSelect={onFilter} />
+              <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />
               {project.roles && project.roles.length > 0 && (
                 <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />
               )}
