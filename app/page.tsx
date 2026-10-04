@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { connection } from 'next/server'
 import MainScene from '@/components/MainScene'
 import { fetchProjects, fetchAbout } from '@/lib/sanity'
 import { DUMMY_ABOUT } from '@/lib/dummy-data'
@@ -32,6 +33,7 @@ async function ProjectScene() {
 }
 
 export default async function Page() {
+  await connection()
   return (
     <Suspense fallback={<Scene projects={[]} about={DUMMY_ABOUT} />}>
       <ProjectScene />
