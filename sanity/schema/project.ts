@@ -1,5 +1,6 @@
 import { defineType, defineField } from 'sanity'
 import PhotoGalleryInput from '../components/PhotoGalleryInput'
+import MonthYearInput from '../components/MonthYearInput'
 
 export const projectSchema = defineType({
   name: 'project',
@@ -62,6 +63,13 @@ export const projectSchema = defineType({
       name: 'date',
       title: 'Date',
       type: 'string',
+      description: 'Month and year only.',
+      components: { input: MonthYearInput },
+      validation: (Rule) => Rule.custom((value) =>
+        !value || /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
+          ? true
+          : 'Choose a month and year.'
+      ),
     }),
     defineField({
       name: 'type',

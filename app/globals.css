@@ -109,6 +109,31 @@ h1, h2, h3, h4 {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
 
+.modal-edge-control {
+  position: absolute;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.9);
+  transition: opacity 0.15s;
+}
+.modal-edge-control:hover:not(:disabled) { opacity: 0.6; }
+.modal-edge-control:disabled { opacity: 0.25; cursor: default; }
+.modal-close-control { top: 0; right: 0; transform: translate(50%, -50%); }
+.modal-previous-control { top: 50%; left: 0; transform: translate(-50%, -50%); }
+.modal-next-control { top: 50%; right: 0; transform: translate(50%, -50%); }
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
@@ -118,11 +143,16 @@ h1, h2, h3, h4 {
 
 /* Mobile: stack modal card vertically and go near-full-screen */
 @media (max-width: 640px) {
+  .project-modal-frame {
+    width: 100% !important;
+    height: 90vh !important;
+  }
+
   .project-modal-card {
     flex-direction: column !important;
-    height: 90vh !important;
-    width: 95vw !important;
   }
+
+  .modal-edge-control { width: 42px; height: 42px; }
 
   .modal-info {
     width: 100% !important;

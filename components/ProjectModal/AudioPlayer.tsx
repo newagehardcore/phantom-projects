@@ -63,15 +63,15 @@ export default function AudioPlayer({ src, caption }: AudioPlayerProps) {
           style={{
             width: 32,
             height: 32,
-            border: '1px solid rgba(255,255,255,0.4)',
-            borderRadius: '50%',
+            border: 0,
             background: 'transparent',
+            padding: 0,
             color: '#fff',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 10,
+            fontSize: 12,
             flexShrink: 0,
           }}
         >

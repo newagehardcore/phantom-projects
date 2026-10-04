@@ -15,6 +15,24 @@ interface MainSceneProps {
   about: About
 }
 
+const MONTHS: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+}
+
+function projectDateValue(date?: string) {
+  if (!date) return Number.POSITIVE_INFINITY
+  const normalized = date.trim().toLowerCase()
+  const namedMonth = normalized.match(/^([a-z]+)\s+(\d{4})$/)
+  if (namedMonth && namedMonth[1] in MONTHS) return Number(namedMonth[2]) * 12 + MONTHS[namedMonth[1]]
+  const storedMonth = normalized.match(/^(\d{4})-(0[1-9]|1[0-2])$/)
+  if (storedMonth) return Number(storedMonth[1]) * 12 + Number(storedMonth[2]) - 1
+  const legacyMonth = normalized.match(/^(0?[1-9]|1[0-2])-(\d{4})$/)
+  if (legacyMonth) return Number(legacyMonth[2]) * 12 + Number(legacyMonth[1]) - 1
+  const parsed = Date.parse(date)
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
+}
+
 export default function MainScene({ projects, about }: MainSceneProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,6 +84,23 @@ export default function MainScene({ projects, about }: MainSceneProps) {
     return raw ? { ...raw, x: 0, y: 0, w: TILE_W, h: TILE_H } : null
   }, [activeProjectSlug, wallProjects, projects])
 
+  const chronologicalProjects = useMemo(() => (
+    [...projects].sort((a, b) => {
+      const dateDifference = projectDateValue(a.date) - projectDateValue(b.date)
+      return dateDifference || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+    })
+  ), [projects])
+
+  const activeChronologicalIndex = activeProjectSlug
+    ? chronologicalProjects.findIndex(project => project.slug === activeProjectSlug)
+    : -1
+  const previousProject = activeChronologicalIndex > 0
+    ? chronologicalProjects[activeChronologicalIndex - 1]
+    : null
+  const nextProject = activeChronologicalIndex >= 0 && activeChronologicalIndex < chronologicalProjects.length - 1
+    ? chronologicalProjects[activeChronologicalIndex + 1]
+    : null
+
   const openProject = useCallback(
     (slug: string) => {
       const params = new URLSearchParams(searchParams.toString())
@@ -79,6 +114,12 @@ export default function MainScene({ projects, about }: MainSceneProps) {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('project')
     router.push(`?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
+
+  const navigateProject = useCallback((slug: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('project', slug)
+    router.replace(`?${params.toString()}`, { scroll: false })
   }, [router, searchParams])
 
   const filterFromModal = useCallback((filter: FilterType | { role: string }) => {
@@ -136,6 +177,8 @@ export default function MainScene({ projects, about }: MainSceneProps) {
           project={activeProject}
           onClose={closeProject}
           onFilter={filterFromModal}
+          onPrevious={previousProject ? () => navigateProject(previousProject.slug) : undefined}
+          onNext={nextProject ? () => navigateProject(nextProject.slug) : undefined}
         />
       )}
       {isAboutOpen && (

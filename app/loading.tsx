@@ -1,5 +1,3 @@
-import Logo from '@/components/HUD/Logo'
-
 export default function Loading() {
   return (
     <main
@@ -34,7 +32,19 @@ export default function Loading() {
         ))}
       </div>
       <header style={{ position: 'absolute', top: 0, left: 0, padding: '18px 24px' }}>
-        <Logo />
+        <div
+          style={{
+            padding: '7px 16px',
+            color: '#fff',
+            fontSize: 22,
+            fontWeight: 700,
+            letterSpacing: '-0.04em',
+            textTransform: 'uppercase',
+            fontFamily: 'inherit',
+          }}
+        >
+          PHANTOM PROJECTS
+        </div>
       </header>
     </main>
   )

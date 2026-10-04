@@ -6,32 +6,47 @@ import MediaReel from './MediaReel'
 import type { WallProject, LinkedItem } from '@/lib/types'
 import type { FilterType } from '@/lib/types'
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function formatProjectDate(date: string) {
+  const stored = date.trim().match(/^(\d{4})-(0[1-9]|1[0-2])$/)
+  if (stored) return `${MONTH_NAMES[Number(stored[2]) - 1]} ${stored[1]}`
+  const legacy = date.trim().match(/^(0?[1-9]|1[0-2])-(\d{4})$/)
+  if (legacy) return `${MONTH_NAMES[Number(legacy[1]) - 1]} ${legacy[2]}`
+  return date
+}
+
 interface ProjectModalProps {
   project: WallProject
   onClose: () => void
   onFilter: (filter: FilterType | { role: string }) => void
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
-export default function ProjectModal({ project, onClose, onFilter }: ProjectModalProps) {
+export default function ProjectModal({ project, onClose, onFilter, onPrevious, onNext }: ProjectModalProps) {
   const subtitle = project.subtitleType === 'None' && project.subtitleName
     ? `“${project.subtitleName}”`
     : project.subtitleName
   const scrimRef    = useRef<HTMLDivElement>(null)
-  const cardRef     = useRef<HTMLDivElement>(null)
+  const modalRef    = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const close = useCallback(() => {
     if (prefersReducedMotion) { onClose(); return }
-    gsap.to(cardRef.current,  { autoAlpha: 0, scale: 0.96, duration: 0.2, ease: 'power2.in' })
+    gsap.to(modalRef.current, { autoAlpha: 0, scale: 0.96, duration: 0.2, ease: 'power2.in' })
     gsap.to(scrimRef.current, { autoAlpha: 0, duration: 0.2, onComplete: onClose })
   }, [onClose, prefersReducedMotion])
 
   useEffect(() => {
     if (!prefersReducedMotion) {
       gsap.fromTo(scrimRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 })
-      gsap.fromTo(cardRef.current,
+      gsap.fromTo(modalRef.current,
         { autoAlpha: 0, scale: 0.96 },
         { autoAlpha: 1, scale: 1, duration: 0.25, ease: 'power2.out' }
       )
@@ -40,16 +55,20 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
   }, [prefersReducedMotion])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+      if (e.key === 'ArrowLeft') onPrevious?.()
+      if (e.key === 'ArrowRight') onNext?.()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [close])
+  }, [close, onPrevious, onNext])
 
   // Focus trap
   useEffect(() => {
-    const card = cardRef.current
-    if (!card) return
-    const focusable = card.querySelectorAll<HTMLElement>(
+    const modal = modalRef.current
+    if (!modal) return
+    const focusable = modal.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     )
     const first = focusable[0]
@@ -62,8 +81,8 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
         if (document.activeElement === last)  { e.preventDefault(); first?.focus() }
       }
     }
-    card.addEventListener('keydown', trap)
-    return () => card.removeEventListener('keydown', trap)
+    modal.addEventListener('keydown', trap)
+    return () => modal.removeEventListener('keydown', trap)
   }, [])
 
   return (
@@ -95,60 +114,50 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
           padding: '24px',
         }}
       >
-        {/* Card */}
+        {/* Modal frame — controls sit over its outside edges */}
         <div
-          ref={cardRef}
+          ref={modalRef}
           role="dialog"
           aria-modal
           aria-label={`Project: ${project.title}`}
-          className="project-modal-card"
+          className="project-modal-frame"
           style={{
             width: 'min(1100px, 100%)',
             height: 'min(700px, 88vh)',
-            background: '#0a0a0a',
-            border: '1px solid rgba(255,255,255,0.1)',
-            display: 'flex',
-            overflow: 'hidden',
-            pointerEvents: 'auto',
+            position: 'relative',
+            pointerEvents: 'none',
             visibility: prefersReducedMotion ? 'visible' : 'hidden',
           }}
         >
-          {/* Left: info */}
+          <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close project" className="modal-edge-control modal-close-control">×</button>
+          <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous project by date" className="modal-edge-control modal-previous-control">{'<'}</button>
+          <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next project by date" className="modal-edge-control modal-next-control">{'>'}</button>
+
           <div
-            className="modal-info"
+            className="project-modal-card"
             style={{
-              width: '38%',
-              flexShrink: 0,
-              padding: '36px 32px',
-              borderRight: '1px solid rgba(255,255,255,0.08)',
-              overflowY: 'auto',
+              width: '100%',
+              height: '100%',
+              background: '#0a0a0a',
+              border: '1px solid rgba(255,255,255,0.1)',
               display: 'flex',
-              flexDirection: 'column',
+              overflow: 'hidden',
+              pointerEvents: 'auto',
             }}
           >
-            <button
-              ref={closeBtnRef}
-              onClick={close}
-              aria-label="Close project"
+            {/* Left: info */}
+            <div
+              className="modal-info"
               style={{
-                alignSelf: 'flex-start',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                color: '#fff',
-                borderRadius: '50%',
-                width: 32,
-                height: 32,
-                cursor: 'pointer',
-                fontSize: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 32,
+                width: '38%',
                 flexShrink: 0,
+                padding: '36px 32px',
+                borderRight: '1px solid rgba(255,255,255,0.08)',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
-              ×
-            </button>
 
             {/* Title */}
             <h2 style={{ fontSize: 'clamp(18px, 2.5vw, 32px)', fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.05, letterSpacing: '-0.04em' }}>
@@ -176,7 +185,7 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
 
             {/* Meta grid */}
             <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {project.date && <Meta label="Date" value={project.date} />}
+              {project.date && <Meta label="Date" value={formatProjectDate(project.date)} />}
               <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />
               {project.roles && project.roles.length > 0 && (
                 <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />
@@ -197,7 +206,7 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
 
             {/* Description */}
             {project.description && (
-              <p style={{ marginTop: 24, fontSize: 13, lineHeight: 1.75, color: 'rgba(255,255,255,0.65)', maxWidth: 360, whiteSpace: 'pre-line', textAlign: 'justify' }}>
+              <p style={{ marginTop: 24, width: '100%', fontSize: 13, lineHeight: 1.75, color: 'rgba(255,255,255,0.65)', whiteSpace: 'pre-line', textAlign: 'justify' }}>
                 {project.description}
               </p>
             )}
@@ -217,11 +226,12 @@ export default function ProjectModal({ project, onClose, onFilter }: ProjectModa
                 ))}
               </div>
             )}
-          </div>
+            </div>
 
-          {/* Right: media */}
-          <div style={{ flex: 1, padding: '36px 32px', overflowY: 'auto' }}>
-            <MediaReel project={project} />
+            {/* Right: media */}
+            <div style={{ flex: 1, padding: '36px 32px', overflowY: 'auto' }}>
+              <MediaReel project={project} />
+            </div>
           </div>
         </div>
       </div>
@@ -261,20 +271,21 @@ function MetaLinks({ label, items }: { label: string; items: LinkedItem[] }) {
   return (
     <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
       <span style={{ color: 'rgba(255,255,255,0.38)', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {items.map((item, i) =>
-          item.url ? (
-            <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-              style={{ color: 'rgba(255,255,255,0.85)', textDecoration: 'underline', textUnderlineOffset: 2 }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.85)')}
-            >
-              {item.name}
-            </a>
-          ) : (
-            <span key={i} style={{ color: 'rgba(255,255,255,0.85)' }}>{item.name}</span>
-          )
-        )}
+      <span style={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.35 }}>
+        {items.map((item, i) => (
+          <span key={`${item.name}-${item.url ?? ''}-${i}`}>
+            {item.url ? (
+              <a href={item.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'inherit')}
+              >
+                {item.name}
+              </a>
+            ) : item.name}
+            {i < items.length - 1 ? ', ' : ''}
+          </span>
+        ))}
       </span>
     </div>
   )
