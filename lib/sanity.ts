@@ -11,6 +11,7 @@ export const sanityClient = createClient({
   dataset,
   apiVersion: '2024-01-01',
   useCdn: true,
+  timeout: 15_000,
 })
 
 const builder = imageUrlBuilder(sanityClient)
@@ -19,7 +20,7 @@ export function urlFor(source: unknown) {
   return builder.image(source as Parameters<typeof builder.image>[0])
 }
 
-export async function fetchProjects(): Promise<Project[]> {
+export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
   type RawProject = Omit<Project, 'thumbnails'> & {
     thumbnails: Array<Project['thumbnails'][number] & {
       asset?: unknown
@@ -28,7 +29,7 @@ export async function fetchProjects(): Promise<Project[]> {
     }>
   }
 
-  const projects = await sanityClient.withConfig({ useCdn: false }).fetch<RawProject[]>(`
+  const projects = await sanityClient.withConfig({ useCdn: true }).fetch<RawProject[]>(`
     *[_type == "project"] | order(order asc) {
       _id,
       "id": _id,
@@ -100,7 +101,7 @@ export async function fetchProjects(): Promise<Project[]> {
       }
     }),
   }))
-}
+}, ['sanity-projects', projectId, dataset], { revalidate: 30, tags: ['sanity-projects'] })
 
 export const fetchAbout = unstable_cache(async (): Promise<About | null> => {
   const raw = await sanityClient.withConfig({ useCdn: false }).fetch(`
@@ -113,3 +114,4 @@ export const fetchAbout = unstable_cache(async (): Promise<About | null> => {
   `)
   return raw as About | null
 }, ['sanity-about'], { revalidate: 15, tags: ['sanity-about'] })
+
