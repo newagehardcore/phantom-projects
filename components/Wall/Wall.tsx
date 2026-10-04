@@ -76,12 +76,10 @@ export default function Wall({
     // (A,B,A,B,A pattern), so a 2× jump always lands on an identical copy.
     const pw = 2 * sw
     const ph = 2 * sh
-    // The three-copy layout spans 0..3 single-copy widths. Keep the camera
-    // in its middle two-copy period so wrapping always lands on a matching tile.
-    if (cam.current.x < sw / 2)       cam.current.x += pw
-    if (cam.current.x > 2.5 * sw)   cam.current.x -= pw
-    if (cam.current.y < sh / 2)       cam.current.y += ph
-    if (cam.current.y > 2.5 * sh)   cam.current.y -= ph
+    if (cam.current.x < sw)       cam.current.x += pw
+    if (cam.current.x > 4 * sw)   cam.current.x -= pw
+    if (cam.current.y < sh)       cam.current.y += ph
+    if (cam.current.y > 4 * sh)   cam.current.y -= ph
   }
 
   function applyWorld() {
