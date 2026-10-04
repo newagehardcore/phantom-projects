@@ -10,8 +10,8 @@ export const COLS = 7
 
 // Tile count in each direction. All copies share the same sorted order so the
 // pattern repeats visually — the user can pan forever and see familiar tiles.
-export const H_COPIES = 3
-export const V_COPIES = 3
+export const H_COPIES = 5
+export const V_COPIES = 5
 
 // ─── Globe projection constants ───────────────────────────────────────────────
 const Gt = 0.24
