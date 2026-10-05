@@ -47,6 +47,10 @@ export default function Wall({
   // displayedProjects lags behind the prop so we can snapshot old tile positions
   // before React swaps the tile elements.
   const [displayedProjects, setDisplayedProjects] = useState<WallProject[]>(projects)
+  // Keep layout data for the full repeated wall, but mount DOM only near the camera.
+  const [mountedProjects, setMountedProjects] = useState<WallProject[]>([])
+  const mountedProjectKeys = useRef('')
+  const displayedProjectsRef = useRef(projects)
   const pendingProjects  = useRef<WallProject[]>(projects)
   // StrictMode-safe change guards (same-reference → no-op second invocation)
   const displayedRef     = useRef<WallProject[]>(projects)
@@ -62,6 +66,54 @@ export default function Wall({
   const lastFrameMs = useRef(performance.now())
 
   const [ready, setReady] = useState(false)
+
+  const selectVisibleProjects = useCallback((source: WallProject[]) => {
+    const z = cam.current.z || INITIAL_ZOOM
+    const margin = 320 / z
+    const halfW = window.innerWidth / (2 * z) + margin
+    const halfH = window.innerHeight / (2 * z) + margin
+    const minX = cam.current.x - halfW
+    const maxX = cam.current.x + halfW
+    const minY = cam.current.y - halfH
+    const maxY = cam.current.y + halfH
+
+    const visible = source.filter((project) =>
+      project.x + project.w >= minX &&
+      project.x <= maxX &&
+      project.y + project.h >= minY &&
+      project.y <= maxY
+    )
+    const mobile = window.matchMedia('(max-width: 760px), (hover: none)').matches
+    const limit = mobile ? 120 : 420
+    if (visible.length > limit) {
+      visible.sort((a, b) =>
+        Math.hypot(a.x + a.w / 2 - cam.current.x, a.y + a.h / 2 - cam.current.y) -
+        Math.hypot(b.x + b.w / 2 - cam.current.x, b.y + b.h / 2 - cam.current.y)
+      )
+      visible.length = limit
+    }
+    return visible
+  }, [])
+
+  const syncMountedProjects = useCallback((source: WallProject[]) => {
+    const next = selectVisibleProjects(source)
+    const key = next.map((project) => `${project.id}:${project.x}:${project.y}`).join('|')
+    if (key !== mountedProjectKeys.current) {
+      mountedProjectKeys.current = key
+      setMountedProjects(next)
+    }
+  }, [selectVisibleProjects])
+
+  displayedProjectsRef.current = displayedProjects
+
+  useEffect(() => {
+    const onResize = () => {
+      applyWorld()
+      syncMountedProjects(displayedProjectsRef.current)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [syncMountedProjects])
 
   // Always reveal the stage after the first client commit. The GSAP intro is
   // optional polish; a failed animation setup must never leave a black screen.
@@ -104,6 +156,7 @@ export default function Wall({
       cam.current.y = c.y
       worldBound.current = worldSize(projects)
       singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
+      syncMountedProjects(projects)
       applyWorld()
       setReady(true)
       return
@@ -123,7 +176,7 @@ export default function Wall({
     })
 
     setDisplayedProjects(pendingProjects.current)
-  }, [projects]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, syncMountedProjects]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // After displayedProjects swaps: reset camera + assign per-tile slide offsets
   // Children's useLayoutEffects (onMount) fire before this parent one, so
@@ -138,6 +191,7 @@ export default function Wall({
     cam.current.y = c.y
     worldBound.current = worldSize(displayedProjects)
     singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
+    syncMountedProjects(displayedProjects)
     applyWorld()
 
     if (!oldScreenPos.current.size) return
@@ -178,12 +232,14 @@ export default function Wall({
         posOffset.current.set(id, { x: dx, y: dy })
       }
     })
-  }, [displayedProjects]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [displayedProjects, syncMountedProjects]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── RAF: inertia + tilt + globe projection + hover scale ──────
   useEffect(() => {
     let rafId: number
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const isTouchDevice = window.matchMedia('(max-width: 760px), (hover: none)').matches
+    const allowDecorativeMotion = !prefersReduced && !isTouchDevice
 
     // Per-tile animated state — lives in closure so it persists across frames
     const hoverScale    = new Map<string, number>()  // current animated scale (1 = rest)
@@ -211,20 +267,18 @@ export default function Wall({
         applyWorld()
       }
 
-      if (prefersReduced) {
-        rafId = requestAnimationFrame(tick)
-        return
-      }
+      // Keep React's DOM working set close to the viewport while the camera moves.
+      syncMountedProjects(displayedProjectsRef.current)
 
       // When a modal is open, lerp tilt back to neutral so tiles
       // don't freeze mid-skew. Full tile loop still runs — only targets change.
       const modalActive = isModalOpenRef.current
 
       // ── Tilt: cursor + idle wobble, smoothly lerped ────────────────────────
-      const wobX = modalActive ? 0 : Math.sin(now * 63e-6) * 0.075
-      const wobY = modalActive ? 0 : (Math.cos(now * 41e-6) * 0.7 + Math.sin(now * 63e-6 * 1.7) * 0.3) * 0.075
-      const tarX = modalActive ? 0 : (cursor.current ? cursor.current.x / vw * 2 - 1 : 0) + wobX
-      const tarY = modalActive ? 0 : (cursor.current ? cursor.current.y / vh * 2 - 1 : 0) + wobY
+      const wobX = modalActive || !allowDecorativeMotion ? 0 : Math.sin(now * 63e-6) * 0.075
+      const wobY = modalActive || !allowDecorativeMotion ? 0 : (Math.cos(now * 41e-6) * 0.7 + Math.sin(now * 63e-6 * 1.7) * 0.3) * 0.075
+      const tarX = modalActive || !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.x / vw * 2 - 1 : 0) + wobX
+      const tarY = modalActive || !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.y / vh * 2 - 1 : 0) + wobY
       const lerpF = Math.min(1, dt * 0.06)
       tilt.current.x += (tarX - tilt.current.x) * lerpF
       tilt.current.y += (tarY - tilt.current.y) * lerpF
@@ -275,7 +329,9 @@ export default function Wall({
         const screenY = (wy - cam.current.y) * cam.current.z + vh / 2
 
         const deg = rot * 180 / Math.PI
-        el.style.transform     = `translate(${(ox + slideX).toFixed(2)}px,${(oy + slideY).toFixed(2)}px) rotate(${deg.toFixed(1)}deg) scale(${sr.toFixed(4)},${st.toFixed(4)}) rotate(${(-deg).toFixed(1)}deg)`
+        el.style.transform = isTouchDevice
+          ? `translate(${(ox + slideX).toFixed(2)}px,${(oy + slideY).toFixed(2)}px) scale(${Math.sqrt(sr * st).toFixed(4)})`
+          : `translate(${(ox + slideX).toFixed(2)}px,${(oy + slideY).toFixed(2)}px) rotate(${deg.toFixed(1)}deg) scale(${sr.toFixed(4)},${st.toFixed(4)}) rotate(${(-deg).toFixed(1)}deg)`
         el.style.opacity       = fade > 0.999 ? '' : fade.toFixed(3)
         // Center tiles sit on top so any Xi-driven overlap is hidden behind them
         el.style.zIndex        = Math.round(fade * 100).toString()
@@ -463,7 +519,7 @@ export default function Wall({
             willChange: 'transform',
           }}
         >
-          {displayedProjects.map((p) => (
+          {mountedProjects.map((p) => (
             <WallTile
               key={p.id}
               project={p}
