@@ -49,7 +49,8 @@ export default function Wall({
   const [displayedProjects, setDisplayedProjects] = useState<WallProject[]>(projects)
   // Keep layout data for the full repeated wall, but mount DOM only near the camera.
   const [mountedProjects, setMountedProjects] = useState<WallProject[]>([])
-  const mountedProjectKeys = useRef('')
+  const mountedProjectIds = useRef(new Set<string>())
+  const lastCullCam = useRef({ x: Number.NaN, y: Number.NaN })
   const displayedProjectsRef = useRef(projects)
   const pendingProjects  = useRef<WallProject[]>(projects)
   // StrictMode-safe change guards (same-reference → no-op second invocation)
@@ -69,7 +70,8 @@ export default function Wall({
 
   const selectVisibleProjects = useCallback((source: WallProject[]) => {
     const z = cam.current.z || INITIAL_ZOOM
-    const margin = 320 / z
+    // Keep a useful overscan area populated without mounting the full wall.
+    const margin = 720 / z
     const halfW = window.innerWidth / (2 * z) + margin
     const halfH = window.innerHeight / (2 * z) + margin
     const minX = cam.current.x - halfW
@@ -83,37 +85,33 @@ export default function Wall({
       project.y + project.h >= minY &&
       project.y <= maxY
     )
-    const mobile = window.matchMedia('(max-width: 760px), (hover: none)').matches
-    const limit = mobile ? 120 : 420
-    if (visible.length > limit) {
-      visible.sort((a, b) =>
-        Math.hypot(a.x + a.w / 2 - cam.current.x, a.y + a.h / 2 - cam.current.y) -
-        Math.hypot(b.x + b.w / 2 - cam.current.x, b.y + b.h / 2 - cam.current.y)
-      )
-      visible.length = limit
-    }
     return visible
   }, [])
 
   const syncMountedProjects = useCallback((source: WallProject[]) => {
     const next = selectVisibleProjects(source)
-    const key = next.map((project) => `${project.id}:${project.x}:${project.y}`).join('|')
-    if (key !== mountedProjectKeys.current) {
-      mountedProjectKeys.current = key
-      setMountedProjects(next)
-    }
+    const nextIds = new Set(next.map((project) => project.id))
+    const currentIds = mountedProjectIds.current
+    if (nextIds.size === currentIds.size && [...nextIds].every((id) => currentIds.has(id))) return
+    mountedProjectIds.current = nextIds
+    setMountedProjects(next)
   }, [selectVisibleProjects])
+
+  const syncMountedProjectsForCamera = useCallback((source: WallProject[]) => {
+    lastCullCam.current = { x: cam.current.x, y: cam.current.y }
+    syncMountedProjects(source)
+  }, [syncMountedProjects])
 
   displayedProjectsRef.current = displayedProjects
 
   useEffect(() => {
     const onResize = () => {
       applyWorld()
-      syncMountedProjects(displayedProjectsRef.current)
+      syncMountedProjectsForCamera(displayedProjectsRef.current)
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [syncMountedProjects])
+  }, [syncMountedProjectsForCamera])
 
   // Always reveal the stage after the first client commit. The GSAP intro is
   // optional polish; a failed animation setup must never leave a black screen.
@@ -156,7 +154,7 @@ export default function Wall({
       cam.current.y = c.y
       worldBound.current = worldSize(projects)
       singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
-      syncMountedProjects(projects)
+      syncMountedProjectsForCamera(projects)
       applyWorld()
       setReady(true)
       return
@@ -176,7 +174,7 @@ export default function Wall({
     })
 
     setDisplayedProjects(pendingProjects.current)
-  }, [projects, syncMountedProjects]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, syncMountedProjectsForCamera]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // After displayedProjects swaps: reset camera + assign per-tile slide offsets
   // Children's useLayoutEffects (onMount) fire before this parent one, so
@@ -191,7 +189,7 @@ export default function Wall({
     cam.current.y = c.y
     worldBound.current = worldSize(displayedProjects)
     singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
-    syncMountedProjects(displayedProjects)
+    syncMountedProjectsForCamera(displayedProjects)
     applyWorld()
 
     if (!oldScreenPos.current.size) return
@@ -232,7 +230,7 @@ export default function Wall({
         posOffset.current.set(id, { x: dx, y: dy })
       }
     })
-  }, [displayedProjects, syncMountedProjects]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [displayedProjects, syncMountedProjectsForCamera]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── RAF: inertia + tilt + globe projection + hover scale ──────
   useEffect(() => {
@@ -267,8 +265,14 @@ export default function Wall({
         applyWorld()
       }
 
-      // Keep React's DOM working set close to the viewport while the camera moves.
-      syncMountedProjects(displayedProjectsRef.current)
+      // Reconcile only after meaningful movement through the overscan region.
+      // This avoids rescanning the full repeated layout and scheduling React
+      // work on every animation frame, especially on mobile CPUs.
+      const lastCull = lastCullCam.current
+      if (Math.abs(cam.current.x - lastCull.x) * cam.current.z > 240 ||
+          Math.abs(cam.current.y - lastCull.y) * cam.current.z > 240) {
+        syncMountedProjectsForCamera(displayedProjectsRef.current)
+      }
 
       // When a modal is open, lerp tilt back to neutral so tiles
       // don't freeze mid-skew. Full tile loop still runs — only targets change.
@@ -428,12 +432,13 @@ export default function Wall({
     cam.current.y -= dy / z
     wrapCam()
     applyWorld()
+    syncMountedProjectsForCamera(displayedProjectsRef.current)
     if (dt > 0) {
       vel.current.x = vel.current.x * 0.4 + (-dx / dt) * 0.6 * 16 / z
       vel.current.y = vel.current.y * 0.4 + (-dy / dt) * 0.6 * 16 / z
     }
     prevPointer.current = { x: e.clientX, y: e.clientY, t: e.timeStamp }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncMountedProjectsForCamera]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragActive.current) return
@@ -470,13 +475,14 @@ export default function Wall({
       cam.current.y += dy
       wrapCam()
       applyWorld()
+      syncMountedProjectsForCamera(displayedProjectsRef.current)
       // Blend into velocity so the wall coasts after fast scrolling
       vel.current.x = vel.current.x * 0.5 + dx * 0.18
       vel.current.y = vel.current.y * 0.5 + dy * 0.18
     }
     stage.addEventListener('wheel', onWheel, { passive: false })
     return () => stage.removeEventListener('wheel', onWheel)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncMountedProjectsForCamera]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const registerTile = useCallback((instanceId: string, el: HTMLDivElement | null) => {
     if (el) tileEls.current.set(instanceId, el)
