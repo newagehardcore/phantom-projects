@@ -57,18 +57,78 @@
 .wall-search:focus-within { outline: 2px solid #fff; outline-offset: 3px; }
 
 .mobile-tile-title { display: none; }
+.mobile-featured-video { display: none; }
+.mobile-site-title { display: none; }
+.mobile-about { display: none; }
+
+@media (min-width: 641px) {
+  .site-header {
+    padding: 0 24px !important;
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .site-title {
+    width: 100%;
+    padding: 2px 0 0 !important;
+    line-height: 0.9 !important;
+    text-align: center;
+  }
+
+  .desktop-site-title {
+    display: block;
+    width: 100%;
+    font-family: 'Helvetica', Arial, sans-serif;
+    font-size: clamp(120px, 19.5vw, 360px);
+    font-weight: 700;
+    letter-spacing: -0.065em;
+    white-space: nowrap;
+  }
+
+  .wall-secondary-controls { gap: 8px; }
+
+  .desktop-about-control button {
+    height: 100%;
+    border: 1px solid #fff !important;
+    background: transparent !important;
+    color: #fff !important;
+    transition: none !important;
+  }
+
+  .desktop-about-control button:hover {
+    border-color: transparent !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
+
+.about-modal-heading {
+  margin: 0 0 18px;
+  max-width: 420px;
+  color: #fff;
+  font-size: clamp(15px, 1.65vw, 22.5px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.about-socials { color: #fff; font-size: 12px; line-height: 1.6; }
+.about-socials a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 @media (max-width: 1000px) {
   .wall-controls {
     flex-direction: column;
     gap: 5px;
     padding: 7px max(8px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)) !important;
-    background: rgba(0, 0, 0, 0.86);
-    backdrop-filter: blur(14px);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .wall-readout { display: none; }
-  .wall-search-slot { order: 1; width: 100%; }
-  .wall-search { width: 100%; }
+  .mobile-about { display: none; }
+  .mobile-about button { min-height: 32px; padding: 4px 14px !important; font-size: 14px !important; border: 1px solid #fff !important; background: #fff !important; color: #000 !important; }
+  .wall-secondary-controls { order: 1; width: 100%; gap: 0; align-items: stretch; }
+  .wall-search { flex: 1; width: 100%; min-width: 0; }
   .wall-search input { width: 100% !important; min-width: 0; min-height: 32px; font-size: 13px !important; padding-top: 4px !important; padding-bottom: 4px !important; }
   .wall-search button { width: 32px; height: 32px; right: 0 !important; justify-content: center; }
   .wall-filters { width: 100%; justify-content: center; }
@@ -76,11 +136,67 @@
 }
 
 @media (max-width: 640px) {
-  .wall-filters { display: grid !important; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .desktop-about-control { display: none; }
+
+  .site-header {
+    padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)) !important;
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+  .site-title {
+    width: 100%;
+    padding: 2px 0 0 !important;
+    line-height: 0.9 !important;
+    text-align: center;
+  }
+
+  .desktop-site-title { display: none; }
+  .mobile-site-title {
+    display: block;
+    width: 100%;
+    font-family: 'Helvetica', Arial, sans-serif;
+    font-size: clamp(60px, 19.5vw, 79px);
+    font-weight: 700;
+    letter-spacing: -0.065em;
+    white-space: nowrap;
+  }
+
+  .mobile-about {
+    display: block;
+    width: 100%;
+    padding: 2px 0;
+  }
+  .mobile-about button { width: 100%; min-height: 28px; padding: 2px 8px !important; font-size: 13px !important; }
+
+  .wall-filters { display: flex !important; justify-content: center !important; align-items: center; white-space: nowrap; }
   .wall-filters .filter-highlight { display: none; }
-  .wall-filters .filter-btn { grid-column: span 3; font-size: 10px !important; padding: 3px 2px !important; }
-  .wall-filters .filter-btn:nth-of-type(n+5) { grid-column: span 4; }
-  .wall-filters .filter-btn[aria-pressed="true"] { background: #fff !important; }
+  .wall-filters .filter-btn {
+    min-height: 18px;
+    padding: 0 !important;
+    font-size: clamp(9px, 2.75vw, 11px) !important;
+    color: #fff !important;
+    background: transparent !important;
+    overflow: visible;
+  }
+  .wall-filters .filter-btn:not(:last-of-type)::after {
+    content: '•';
+    position: static;
+    display: inline-block;
+    margin: 0 5px;
+    color: #fff;
+    font-size: 0.72em;
+    vertical-align: 0.12em;
+  }
+  .wall-filters .filter-btn[aria-pressed="true"] { text-decoration: underline; text-underline-offset: 2px; }
+  .wall-filters .filter-btn:hover { color: #fff !important; background: transparent !important; }
+
+  .wall-search input {
+    min-height: 26px;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    font-size: 10px !important;
+  }
+  .wall-search button { width: 26px; height: 26px; }
 
   .mobile-tile-title {
     position: absolute;
@@ -177,7 +293,10 @@ h1, h2, h3, h4 {
     height: auto !important;
     max-height: 100% !important;
     margin: 0 !important;
+    visibility: visible !important;
   }
+
+  .project-modal-scrim { visibility: visible !important; }
 
   .project-modal-card {
     flex-direction: column !important;
@@ -199,6 +318,17 @@ h1, h2, h3, h4 {
     padding: 54px 18px 20px !important;
     overflow: visible !important;
   }
+
+  .mobile-featured-video {
+    display: block;
+    width: 100%;
+    flex: 0 0 auto;
+    background: #000;
+  }
+
+  .mobile-featured-video > div { margin-bottom: 0 !important; }
+  .mobile-featured-video + .modal-info { padding-top: 20px !important; }
+  .modal-reel-first-video { display: none; }
 
   .modal-media { padding: 18px !important; overflow: visible !important; flex: none !important; }
 
@@ -225,6 +355,7 @@ h1, h2, h3, h4 {
   }
 
   .about-modal-copy p { margin-top: 12px !important; max-width: none !important; text-align: left !important; }
+  .about-modal-heading { margin-bottom: 14px; max-width: none; font-size: 18px; }
 
   .about-close-control {
     position: fixed;

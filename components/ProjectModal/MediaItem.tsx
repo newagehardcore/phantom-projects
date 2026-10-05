@@ -74,6 +74,7 @@ function UploadedVideo({ src }: { src: string }) {
         src={src}
         preload="metadata"
         controls
+        playsInline
         onLoadedMetadata={(event) => {
           const video = event.currentTarget
           if (video.videoWidth && video.videoHeight) setAspectRatio(`${video.videoWidth} / ${video.videoHeight}`)

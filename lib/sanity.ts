@@ -107,6 +107,8 @@ export const fetchAbout = unstable_cache(async (): Promise<About | null> => {
   const raw = await sanityClient.withConfig({ useCdn: false }).fetch(`
     *[_type == "about"][0] {
       title,
+      headerDescription,
+      contactEmail,
       "photo": { "url": photo.asset->url, "alt": photo.alt },
       bio,
       "socials": socials[]{ label, url },

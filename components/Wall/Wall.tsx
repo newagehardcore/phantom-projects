@@ -17,14 +17,18 @@ interface WallProps {
 
 const TAP_MAX_DIST = 8
 const TAP_MAX_MS   = 350
-const INITIAL_ZOOM = 0.72
-const MOBILE_ZOOM = INITIAL_ZOOM * 0.68
+const DESKTOP_ZOOM = 0.9
+const MOBILE_ZOOM = 0.72 * 0.68
 const DRIFT_SPEED = 0.18
 const DRIFT_RESUME_MS = 1600
-const MOBILE_TAP_ARM_MS = 1400
+const MOBILE_TAP_OPEN_MS = 750
 
 // Maximum screen-pixel distance a tile will slide from during the rearrange
 const MAX_SLIDE_PX = 700
+
+function wallLayoutKey(projects: WallProject[]) {
+  return projects.map(project => `${project.id}:${project.x}:${project.y}:${project.w}:${project.h}`).join('|')
+}
 
 export default function Wall({
   projects, isModalOpen, driftResetKey, onTileClick, onTileHover,
@@ -32,14 +36,14 @@ export default function Wall({
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
 
-  const cam        = useRef({ x: 0, y: 0, z: INITIAL_ZOOM })
+  const cam        = useRef({ x: 0, y: 0, z: DESKTOP_ZOOM })
   const vel        = useRef({ x: 0, y: 0 })
   const worldBound = useRef({ w: 0, h: 0 })
   const singleSize = useRef({ w: 0, h: 0 })
   const firstMount = useRef(true)
 
   const isModalOpenRef = useRef(false)
-  useEffect(() => { isModalOpenRef.current = isModalOpen }, [isModalOpen])
+  isModalOpenRef.current = isModalOpen
 
   const dragActive   = useRef(false)
   const tapStart     = useRef({ x: 0, y: 0, t: 0 })
@@ -48,7 +52,7 @@ export default function Wall({
   const momentumTw   = useRef<gsap.core.Tween | null>(null)
   const drift        = useRef({ x: 0, y: 0 })
   const driftResumeAt = useRef(0)
-  const armedTile = useRef<{ id: string; expires: number } | null>(null)
+  const pendingMobileOpen = useRef<number | null>(null)
 
   const tileEls     = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -63,7 +67,7 @@ export default function Wall({
   const displayedProjectsRef = useRef(projects)
   const pendingProjects  = useRef<WallProject[]>(projects)
   // StrictMode-safe change guards (same-reference → no-op second invocation)
-  const displayedRef     = useRef<WallProject[]>(projects)
+  const displayedLayoutKey = useRef(wallLayoutKey(projects))
   const prevDisplayedRef = useRef<WallProject[]>(projects)
   // Per-tile screen-pixel offset (decays to 0 in the RAF each frame)
   const posOffset   = useRef<Map<string, { x: number; y: number }>>(new Map())
@@ -76,6 +80,15 @@ export default function Wall({
   const lastFrameMs = useRef(performance.now())
 
   const [ready, setReady] = useState(false)
+  const wasModalOpen = useRef(isModalOpen)
+
+  useEffect(() => {
+    if (wasModalOpen.current && !isModalOpen) {
+      setHoveredTileId(null)
+      onTileHover(null)
+    }
+    wasModalOpen.current = isModalOpen
+  }, [isModalOpen, onTileHover])
 
   const chooseDrift = useCallback(() => {
     const angle = Math.random() * Math.PI * 2
@@ -84,7 +97,7 @@ export default function Wall({
   }, [])
 
   const selectVisibleProjects = useCallback((source: WallProject[]) => {
-    const z = cam.current.z || INITIAL_ZOOM
+    const z = cam.current.z || DESKTOP_ZOOM
     // Keep a useful overscan area populated without mounting the full wall.
     const margin = 720 / z
     const halfW = window.innerWidth / (2 * z) + margin
@@ -133,11 +146,14 @@ export default function Wall({
   useEffect(() => {
     setReady(true)
     chooseDrift()
+    return () => {
+      if (pendingMobileOpen.current !== null) window.clearTimeout(pendingMobileOpen.current)
+    }
   }, [chooseDrift])
 
   useEffect(() => {
-    if (!isModalOpen) chooseDrift()
-  }, [isModalOpen, driftResetKey, chooseDrift])
+    chooseDrift()
+  }, [driftResetKey, chooseDrift])
 
   function wrapCam() {
     const { w: sw, h: sh } = singleSize.current
@@ -169,7 +185,7 @@ export default function Wall({
 
     if (firstMount.current) {
       firstMount.current = false
-      cam.current.z = window.matchMedia('(max-width: 760px), (hover: none)').matches ? MOBILE_ZOOM : INITIAL_ZOOM
+      cam.current.z = window.matchMedia('(max-width: 760px), (hover: none)').matches ? MOBILE_ZOOM : DESKTOP_ZOOM
       const c = initialCam(projects)
       cam.current.x = c.x
       cam.current.y = c.y
@@ -181,8 +197,10 @@ export default function Wall({
       return
     }
 
-    // StrictMode guard: same reference means nothing changed
-    if (projects === displayedRef.current) return
+    // Search-param route updates can recreate an equivalent layout. Preserve
+    // the camera and mounted tiles unless the wall geometry actually changed.
+    const nextLayoutKey = wallLayoutKey(projects)
+    if (nextLayoutKey === displayedLayoutKey.current) return
 
     // Snapshot each old tile's screen center before React swaps the elements
     oldScreenPos.current.clear()
@@ -201,7 +219,7 @@ export default function Wall({
   // Children's useLayoutEffects (onMount) fire before this parent one, so
   // tileEls.current already contains all the new tile elements.
   useLayoutEffect(() => {
-    displayedRef.current = displayedProjects
+    displayedLayoutKey.current = wallLayoutKey(displayedProjects)
     if (displayedProjects === prevDisplayedRef.current) return
     prevDisplayedRef.current = displayedProjects
 
@@ -275,7 +293,7 @@ export default function Wall({
       const vw = window.innerWidth
       const vh = window.innerHeight
 
-      if (!dragActive.current && !isModalOpenRef.current && now >= driftResumeAt.current) {
+      if (!dragActive.current && now >= driftResumeAt.current) {
         cam.current.x += drift.current.x * (dt / 16.67)
         cam.current.y += drift.current.y * (dt / 16.67)
         wrapCam()
@@ -302,15 +320,11 @@ export default function Wall({
         syncMountedProjectsForCamera(displayedProjectsRef.current)
       }
 
-      // When a modal is open, lerp tilt back to neutral so tiles
-      // don't freeze mid-skew. Full tile loop still runs — only targets change.
-      const modalActive = isModalOpenRef.current
-
       // ── Tilt: cursor + idle wobble, smoothly lerped ────────────────────────
-      const wobX = modalActive || !allowDecorativeMotion ? 0 : Math.sin(now * 63e-6) * 0.075
-      const wobY = modalActive || !allowDecorativeMotion ? 0 : (Math.cos(now * 41e-6) * 0.7 + Math.sin(now * 63e-6 * 1.7) * 0.3) * 0.075
-      const tarX = modalActive || !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.x / vw * 2 - 1 : 0) + wobX
-      const tarY = modalActive || !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.y / vh * 2 - 1 : 0) + wobY
+      const wobX = !allowDecorativeMotion ? 0 : Math.sin(now * 63e-6) * 0.075
+      const wobY = !allowDecorativeMotion ? 0 : (Math.cos(now * 41e-6) * 0.7 + Math.sin(now * 63e-6 * 1.7) * 0.3) * 0.075
+      const tarX = !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.x / vw * 2 - 1 : 0) + wobX
+      const tarY = !allowDecorativeMotion ? 0 : (cursor.current ? cursor.current.y / vh * 2 - 1 : 0) + wobY
       const lerpF = Math.min(1, dt * 0.06)
       tilt.current.x += (tarX - tilt.current.x) * lerpF
       tilt.current.y += (tarY - tilt.current.y) * lerpF
@@ -377,7 +391,7 @@ export default function Wall({
 
         // ── Hover scale — smooth toward target (target=1 when modal open) ──
         const curHS  = hoverScale.get(id) ?? 1
-        const tarHS  = modalActive ? 1 : 1 + weight * HOVER_BOOST
+        const tarHS  = 1 + weight * HOVER_BOOST
         const nextHS = curHS + (tarHS - curHS) * fastLerp
         hoverScale.set(id, nextHS)
 
@@ -432,6 +446,7 @@ export default function Wall({
 
   const onMouseLeave = useCallback(() => {
     if (window.matchMedia('(hover: none)').matches) return
+    if (isModalOpenRef.current) return
     cursor.current = null
     lastHoveredSlug.current = null
     lastHoveredTileId.current = null
@@ -490,24 +505,13 @@ export default function Wall({
       const tileId = cell?.dataset.tileId
       const isTouch = pointerType.current === 'touch' || window.matchMedia('(hover: none)').matches
       if (slug && tileId && isTouch) {
-        const now = performance.now()
-        const armed = armedTile.current
-        if (armed?.id === tileId && armed.expires > now) {
-          armedTile.current = null
-          setHoveredTileId(null)
-          onTileHover(null)
+        if (pendingMobileOpen.current !== null) window.clearTimeout(pendingMobileOpen.current)
+        setHoveredTileId(tileId)
+        onTileHover(displayedProjectsRef.current.find(project => project.id === tileId) ?? null)
+        pendingMobileOpen.current = window.setTimeout(() => {
+          pendingMobileOpen.current = null
           onTileClick(slug)
-        } else {
-          armedTile.current = { id: tileId, expires: now + MOBILE_TAP_ARM_MS }
-          setHoveredTileId(tileId)
-          onTileHover(displayedProjectsRef.current.find(project => project.id === tileId) ?? null)
-          window.setTimeout(() => {
-            if (armedTile.current?.id !== tileId || armedTile.current.expires > performance.now()) return
-            armedTile.current = null
-            setHoveredTileId(current => current === tileId ? null : current)
-            onTileHover(null)
-          }, MOBILE_TAP_ARM_MS + 50)
-        }
+        }, MOBILE_TAP_OPEN_MS)
       } else if (slug) {
         onTileClick(slug)
       }

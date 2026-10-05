@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
 import MediaReel from './MediaReel'
+import MediaItem from './MediaItem'
 import type { WallProject, LinkedItem } from '@/lib/types'
 import type { FilterType } from '@/lib/types'
 
@@ -36,15 +37,16 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const isMobileViewport = () => window.matchMedia('(max-width: 640px), (hover: none)').matches
 
   const close = useCallback(() => {
-    if (prefersReducedMotion) { onClose(); return }
+    if (prefersReducedMotion || isMobileViewport()) { onClose(); return }
     gsap.to(modalRef.current, { autoAlpha: 0, scale: 0.96, duration: 0.2, ease: 'power2.in' })
     gsap.to(scrimRef.current, { autoAlpha: 0, duration: 0.2, onComplete: onClose })
   }, [onClose, prefersReducedMotion])
 
   useEffect(() => {
-    if (!prefersReducedMotion) {
+    if (!prefersReducedMotion && !isMobileViewport()) {
       gsap.fromTo(scrimRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 })
       gsap.fromTo(modalRef.current,
         { autoAlpha: 0, scale: 0.96 },
@@ -90,6 +92,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
       {/* Scrim — semi-transparent so the wall is visible behind */}
       <div
         ref={scrimRef}
+        className="project-modal-scrim"
         onClick={close}
         aria-hidden
         style={{
@@ -146,6 +149,12 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
               pointerEvents: 'auto',
             }}
           >
+            {(project.videos ?? [])[0] && (
+              <div className="mobile-featured-video">
+                <MediaItem kind="video" data={project.videos[0]} />
+              </div>
+            )}
+
             {/* Left: info */}
             <div
               className="modal-info"

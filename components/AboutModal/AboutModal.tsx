@@ -10,7 +10,10 @@ interface AboutModalProps {
 }
 
 export default function AboutModal({ about, onClose }: AboutModalProps) {
-  const socials = about.socials ?? []
+  const socials = [
+    ...(about.contactEmail ? [{ label: 'Email', url: `mailto:${about.contactEmail}` }] : []),
+    ...(about.socials ?? []),
+  ]
   const scrimRef    = useRef<HTMLDivElement>(null)
   const cardRef     = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -121,6 +124,12 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
 
           {/* Left: bio + socials */}
           <div className="about-modal-copy" style={{ flex: 1, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            {about.headerDescription && (
+              <h2 className="about-modal-heading">
+                {about.headerDescription}
+              </h2>
+            )}
+
             {about.bio && (
               <p style={{ marginTop: 20, fontSize: 14, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', maxWidth: 380, whiteSpace: 'pre-line', textAlign: 'justify' }}>
                 {about.bio}
@@ -128,22 +137,18 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
             )}
 
             {socials.length > 0 && (
-              <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="about-socials" style={{ marginTop: 28 }}>
                 {socials.map((s, i) => (
-                  <a
-                    key={i}
-                    href={s.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontSize: 12,
-                      color: '#fff',
-                      textDecoration: 'underline',
-                      textUnderlineOffset: 2,
-                    }}
-                  >
-                    {s.label}
-                  </a>
+                  <span key={`${s.label}-${s.url}-${i}`}>
+                    <a
+                      href={s.url}
+                      target={s.url.startsWith('mailto:') ? undefined : '_blank'}
+                      rel={s.url.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
+                    >
+                      {s.label}
+                    </a>
+                    {i < socials.length - 1 ? ', ' : ''}
+                  </span>
                 ))}
               </div>
             )}

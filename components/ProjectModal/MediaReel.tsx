@@ -14,8 +14,10 @@ export default function MediaReel({ project }: MediaReelProps) {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', paddingLeft: 0 }}>
-      {(project.videos ?? []).map((video) => (
-        <MediaItem key={video._key} kind="video" data={video} />
+      {(project.videos ?? []).map((video, index) => (
+        <div key={video._key} className={index === 0 ? 'modal-reel-first-video' : undefined}>
+          <MediaItem kind="video" data={video} />
+        </div>
       ))}
 
       {(project.audio ?? []).map((audio) => (

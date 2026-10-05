@@ -86,6 +86,8 @@ export interface WallProject extends Project {
 
 export interface About {
   title?: string
+  headerDescription?: string
+  contactEmail?: string
   photo?: { url: string; alt?: string }
   bio?: string
   socials?: Array<{ label: string; url: string }> | null

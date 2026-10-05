@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import FilterBar from './FilterBar'
 import AboutButton from './AboutButton'
 import Readout from './Readout'
@@ -26,10 +27,20 @@ const transitionStyle = (visible: boolean): React.CSSProperties => ({
 export default function HUD({
   activeFilter, onFilterChange, onAbout, onHome, hoveredProject, visible, searchQuery, onSearchChange,
 }: HUDProps) {
+  const [mobileLogoWord, setMobileLogoWord] = useState<'PHANTOM' | 'PROJECTS'>('PHANTOM')
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setMobileLogoWord(word => word === 'PHANTOM' ? 'PROJECTS' : 'PHANTOM')
+    }, 750)
+    return () => window.clearInterval(timer)
+  }, [])
+
   return (
     <>
       {/* Top: site name + about only */}
       <header
+        className="site-header"
         style={{
           position: 'fixed',
           top: 0,
@@ -44,6 +55,7 @@ export default function HUD({
         }}
       >
         <button
+          className="site-title"
           type="button"
           onClick={onHome}
           aria-label="Return to all projects"
@@ -60,18 +72,13 @@ export default function HUD({
             cursor: 'pointer',
             fontFamily: 'inherit',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#fff'
-            e.currentTarget.style.color = '#000'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = '#fff'
-          }}
         >
-          PHANTOM PROJECTS
+          <span className="desktop-site-title">{mobileLogoWord}</span>
+          <span className="mobile-site-title">{mobileLogoWord}</span>
         </button>
-        <AboutButton onClick={onAbout} />
+        <div className="mobile-about">
+          <AboutButton onClick={onAbout} />
+        </div>
       </header>
 
       <Readout project={hoveredProject} />
@@ -93,7 +100,10 @@ export default function HUD({
         }}
       >
         <FilterBar active={activeFilter} onChange={onFilterChange} />
-        <div className="wall-search-slot" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="wall-secondary-controls" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="desktop-about-control">
+            <AboutButton onClick={onAbout} />
+          </div>
           <SearchBar value={searchQuery} onChange={onSearchChange} />
         </div>
       </footer>
