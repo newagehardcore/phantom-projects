@@ -41,6 +41,7 @@ export default function MainScene({ projects, about }: MainSceneProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null)
   const [hoveredProject, setHoveredProject] = useState<WallProject | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [driftResetKey, setDriftResetKey] = useState(0)
 
   // Re-layout whenever filter or search changes — results always tile to fill the wall
   const wallProjects = useMemo(() => {
@@ -149,6 +150,7 @@ export default function MainScene({ projects, about }: MainSceneProps) {
     setActiveFilter('All')
     setActiveRole(null)
     setSearchQuery('')
+    setDriftResetKey(key => key + 1)
     router.push('/', { scroll: false })
   }, [router])
 
@@ -159,6 +161,7 @@ export default function MainScene({ projects, about }: MainSceneProps) {
       <Wall
         projects={wallProjects}
         isModalOpen={isModalOpen}
+        driftResetKey={driftResetKey}
         onTileClick={openProject}
         onTileHover={setHoveredProject}
       />

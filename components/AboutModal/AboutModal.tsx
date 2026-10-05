@@ -79,6 +79,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
 
       {/* Centering shell */}
       <div
+        className="about-modal-shell"
         style={{
           position: 'fixed',
           inset: 0,
@@ -96,8 +97,10 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
           role="dialog"
           aria-modal
           aria-label="About Phantom Projects"
+          className="about-modal-card"
           style={{
             width: 'min(800px, 100%)',
+            position: 'relative',
             background: '#0a0a0a',
             border: '1px solid rgba(255,255,255,0.1)',
             display: 'flex',
@@ -106,32 +109,18 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
             visibility: prefersReducedMotion ? 'visible' : 'hidden',
           }}
         >
-          {/* Left: bio + socials */}
-          <div style={{ flex: 1, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <button
-              ref={closeBtnRef}
-              onClick={close}
-              aria-label="Close about"
-              style={{
-                alignSelf: 'flex-start',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                color: '#fff',
-                borderRadius: '50%',
-                width: 32,
-                height: 32,
-                cursor: 'pointer',
-                fontSize: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 28,
-                flexShrink: 0,
-              }}
-            >
-              ×
-            </button>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            onClick={close}
+            aria-label="Close about"
+            className="modal-edge-control about-close-control"
+          >
+            ×
+          </button>
 
+          {/* Left: bio + socials */}
+          <div className="about-modal-copy" style={{ flex: 1, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             {about.bio && (
               <p style={{ marginTop: 20, fontSize: 14, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', maxWidth: 380, whiteSpace: 'pre-line', textAlign: 'justify' }}>
                 {about.bio}
@@ -162,7 +151,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
 
           {/* Right: photo */}
           {about.photo && (
-            <div style={{ width: '52%', flexShrink: 0, position: 'relative', overflow: 'hidden', minHeight: 320 }}>
+            <div className="about-modal-image" style={{ width: '52%', flexShrink: 0, position: 'relative', overflow: 'hidden', minHeight: 320 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={about.photo.url}

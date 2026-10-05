@@ -48,6 +48,7 @@ export default function Readout({ project }: ReadoutProps) {
   return (
     <div
       ref={ref}
+      className="wall-readout"
       style={{
         position: 'fixed',
         left: 0,

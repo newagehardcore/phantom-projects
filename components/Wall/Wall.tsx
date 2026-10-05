@@ -10,6 +10,7 @@ import type { WallProject } from '@/lib/types'
 interface WallProps {
   projects: WallProject[]
   isModalOpen: boolean
+  driftResetKey: number
   onTileClick: (slug: string) => void
   onTileHover: (project: WallProject | null) => void
 }
@@ -17,12 +18,16 @@ interface WallProps {
 const TAP_MAX_DIST = 8
 const TAP_MAX_MS   = 350
 const INITIAL_ZOOM = 0.72
+const MOBILE_ZOOM = INITIAL_ZOOM * 0.68
+const DRIFT_SPEED = 0.18
+const DRIFT_RESUME_MS = 1600
+const MOBILE_TAP_ARM_MS = 1400
 
 // Maximum screen-pixel distance a tile will slide from during the rearrange
 const MAX_SLIDE_PX = 700
 
 export default function Wall({
-  projects, isModalOpen, onTileClick, onTileHover,
+  projects, isModalOpen, driftResetKey, onTileClick, onTileHover,
 }: WallProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
@@ -38,8 +43,12 @@ export default function Wall({
 
   const dragActive   = useRef(false)
   const tapStart     = useRef({ x: 0, y: 0, t: 0 })
+  const pointerType  = useRef('mouse')
   const prevPointer  = useRef({ x: 0, y: 0, t: 0 })
   const momentumTw   = useRef<gsap.core.Tween | null>(null)
+  const drift        = useRef({ x: 0, y: 0 })
+  const driftResumeAt = useRef(0)
+  const armedTile = useRef<{ id: string; expires: number } | null>(null)
 
   const tileEls     = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -67,6 +76,12 @@ export default function Wall({
   const lastFrameMs = useRef(performance.now())
 
   const [ready, setReady] = useState(false)
+
+  const chooseDrift = useCallback(() => {
+    const angle = Math.random() * Math.PI * 2
+    drift.current = { x: Math.cos(angle) * DRIFT_SPEED, y: Math.sin(angle) * DRIFT_SPEED }
+    driftResumeAt.current = performance.now() + 400
+  }, [])
 
   const selectVisibleProjects = useCallback((source: WallProject[]) => {
     const z = cam.current.z || INITIAL_ZOOM
@@ -117,7 +132,12 @@ export default function Wall({
   // optional polish; a failed animation setup must never leave a black screen.
   useEffect(() => {
     setReady(true)
-  }, [])
+    chooseDrift()
+  }, [chooseDrift])
+
+  useEffect(() => {
+    if (!isModalOpen) chooseDrift()
+  }, [isModalOpen, driftResetKey, chooseDrift])
 
   function wrapCam() {
     const { w: sw, h: sh } = singleSize.current
@@ -149,6 +169,7 @@ export default function Wall({
 
     if (firstMount.current) {
       firstMount.current = false
+      cam.current.z = window.matchMedia('(max-width: 760px), (hover: none)').matches ? MOBILE_ZOOM : INITIAL_ZOOM
       const c = initialCam(projects)
       cam.current.x = c.x
       cam.current.y = c.y
@@ -253,6 +274,13 @@ export default function Wall({
 
       const vw = window.innerWidth
       const vh = window.innerHeight
+
+      if (!dragActive.current && !isModalOpenRef.current && now >= driftResumeAt.current) {
+        cam.current.x += drift.current.x * (dt / 16.67)
+        cam.current.y += drift.current.y * (dt / 16.67)
+        wrapCam()
+        applyWorld()
+      }
 
       // Framerate-independent inertia decay
       if (!dragActive.current && (Math.abs(vel.current.x) > 0.01 || Math.abs(vel.current.y) > 0.01)) {
@@ -385,6 +413,7 @@ export default function Wall({
   const [hoveredTileId, setHoveredTileId] = useState<string | null>(null)
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (window.matchMedia('(hover: none)').matches) return
     cursor.current = { x: e.clientX, y: e.clientY }
     if (dragActive.current) return
     const el   = document.elementFromPoint(e.clientX, e.clientY)
@@ -402,6 +431,7 @@ export default function Wall({
   }, [displayedProjects, onTileHover])
 
   const onMouseLeave = useCallback(() => {
+    if (window.matchMedia('(hover: none)').matches) return
     cursor.current = null
     lastHoveredSlug.current = null
     lastHoveredTileId.current = null
@@ -416,6 +446,8 @@ export default function Wall({
     momentumTw.current?.kill()
     vel.current      = { x: 0, y: 0 }
     dragActive.current  = true
+    pointerType.current = e.pointerType
+    driftResumeAt.current = performance.now() + DRIFT_RESUME_MS
     tapStart.current    = { x: e.clientX, y: e.clientY, t: e.timeStamp }
     prevPointer.current = { x: e.clientX, y: e.clientY, t: e.timeStamp };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -455,9 +487,32 @@ export default function Wall({
       const el   = document.elementFromPoint(e.clientX, e.clientY)
       const cell = el?.closest<HTMLElement>('[data-slug]')
       const slug = cell?.dataset.slug
-      if (slug) onTileClick(slug)
+      const tileId = cell?.dataset.tileId
+      const isTouch = pointerType.current === 'touch' || window.matchMedia('(hover: none)').matches
+      if (slug && tileId && isTouch) {
+        const now = performance.now()
+        const armed = armedTile.current
+        if (armed?.id === tileId && armed.expires > now) {
+          armedTile.current = null
+          setHoveredTileId(null)
+          onTileHover(null)
+          onTileClick(slug)
+        } else {
+          armedTile.current = { id: tileId, expires: now + MOBILE_TAP_ARM_MS }
+          setHoveredTileId(tileId)
+          onTileHover(displayedProjectsRef.current.find(project => project.id === tileId) ?? null)
+          window.setTimeout(() => {
+            if (armedTile.current?.id !== tileId || armedTile.current.expires > performance.now()) return
+            armedTile.current = null
+            setHoveredTileId(current => current === tileId ? null : current)
+            onTileHover(null)
+          }, MOBILE_TAP_ARM_MS + 50)
+        }
+      } else if (slug) {
+        onTileClick(slug)
+      }
     }
-  }, [onTileClick])
+  }, [onTileClick, onTileHover])
 
   // ── Scroll wheel — pan the wall without dragging ──────────────────────────
   useEffect(() => {
@@ -466,6 +521,7 @@ export default function Wall({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       momentumTw.current?.kill()
+      driftResumeAt.current = performance.now() + DRIFT_RESUME_MS
       const z = cam.current.z
       // Normalize delta across pixel / line / page modes
       const scale = e.deltaMode === 1 ? 30 : e.deltaMode === 2 ? window.innerHeight * 0.8 : 1

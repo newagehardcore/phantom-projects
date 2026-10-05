@@ -103,6 +103,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
 
       {/* Centering shell — pointer-events none so clicks outside card hit scrim */}
       <div
+        className="project-modal-shell"
         style={{
           position: 'fixed',
           inset: 0,
@@ -229,7 +230,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
             </div>
 
             {/* Right: media */}
-            <div style={{ flex: 1, padding: '36px 32px', overflowY: 'auto' }}>
+            <div className="modal-media" style={{ flex: 1, padding: '36px 32px', overflowY: 'auto' }}>
               <MediaReel project={project} />
             </div>
           </div>

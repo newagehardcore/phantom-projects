@@ -216,6 +216,9 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
           onCanPlay={firstIsVideo ? (e) => { (e.currentTarget as HTMLVideoElement).play().catch(() => {}) } : undefined}
           style={{ ...mediaStyle, display: firstIsVideo ? 'block' : 'none' }}
         />
+        <div className={`mobile-tile-title${isHovered ? ' is-visible' : ''}`}>
+          {project.title}
+        </div>
       </div>
     </div>
   )
