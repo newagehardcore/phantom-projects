@@ -24,11 +24,19 @@ const mediaStyle: React.CSSProperties = {
 // The z-index in Wall.tsx (center tiles on top) keeps the overlap invisible.
 const BLEED = 10
 
+function hashInstanceId(value: string) {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
 export default function WallTile({ project, isHovered, onMount, onKeyActivate }: WallTileProps) {
   const ref      = useRef<HTMLDivElement>(null)
   const imgRef   = useRef<HTMLImageElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const currentThumbIndex = useRef(0)
   const mediaAnimation = useRef<Animation | null>(null)
 
   // Keep the CMS order within each media type, with videos leading every cycle.
@@ -40,7 +48,11 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
       Number('type' in b && b.type === 'video') - Number('type' in a && a.type === 'video')
     )
   }, [project.thumbnails, project.thumbnail])
-  const firstThumb   = thumbnails[0] ?? { url: '', alt: '' }
+  const instanceSeed = useMemo(() => hashInstanceId(project.id), [project.id])
+  const initialThumbIndex = thumbnails.length ? instanceSeed % thumbnails.length : 0
+  const cycleStep = instanceSeed % 2 === 0 ? 1 : -1
+  const currentThumbIndex = useRef(initialThumbIndex)
+  const firstThumb   = thumbnails[initialThumbIndex] ?? { url: '', alt: '' }
   const firstIsVideo = 'type' in firstThumb && firstThumb.type === 'video'
 
   // Callback ref fires when React inserts the element, before any autoplay
@@ -130,12 +142,11 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     } else {
       showThumb(Math.min(currentThumbIndex.current, imgs.length - 1))
       if (imgs.length > 1) {
-        const seed = project.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-        const baseMs = 10000 + (seed * 2971 + 13) % 8000
+        const baseMs = 10000 + (instanceSeed * 2971 + 13) % 8000
         const schedule = () => {
           const nextMs = -baseMs * Math.log(Math.random() + 1e-10)
           const timer = window.setTimeout(() => {
-            const nextIndex = (currentThumbIndex.current + 1) % imgs.length
+            const nextIndex = (currentThumbIndex.current + cycleStep + imgs.length) % imgs.length
             showThumb(nextIndex)
             schedule()
           }, nextMs)
@@ -155,7 +166,7 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
         videoRef.current.load()
       }
     }
-  }, [project.id, thumbnails, isHovered])
+  }, [project.id, thumbnails, isHovered, instanceSeed, cycleStep])
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
