@@ -70,6 +70,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
         "_type": _type,
         "_key": _key,
         "fileUrl": select(_type == "uploadedVideo" => file.asset->url),
+        "posterUrl": poster.asset->url,
         "url": select(_type == "linkedVideo" => url),
         caption,
       },
@@ -116,4 +117,3 @@ export const fetchAbout = unstable_cache(async (): Promise<About | null> => {
   `)
   return raw as About | null
 }, ['sanity-about'], { revalidate: 15, tags: ['sanity-about'] })
-

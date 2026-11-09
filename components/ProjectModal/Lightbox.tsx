@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
+import { createPortal } from 'react-dom'
 import type { PhotoAsset } from '@/lib/types'
 
 interface LightboxProps {
@@ -14,20 +15,22 @@ interface LightboxProps {
 export default function Lightbox({ photos, index, onClose, onNav }: LightboxProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const photo = photos[index]
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   useEffect(() => {
-    if (overlayRef.current) {
-      gsap.fromTo(overlayRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 })
-    }
-  }, [])
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    gsap.fromTo(overlayRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: reducedMotion ? 0 : 0.2, onComplete: () => { closeBtnRef.current?.focus() } })
+    return () => { if (opener?.isConnected) opener.focus() }
+  }, [reducedMotion])
 
   const close = useCallback(() => {
     if (overlayRef.current) {
-      gsap.to(overlayRef.current, { autoAlpha: 0, duration: 0.15, onComplete: onClose })
+      gsap.to(overlayRef.current, { autoAlpha: 0, duration: reducedMotion ? 0 : 0.15, onComplete: onClose })
     } else {
       onClose()
     }
-  }, [onClose])
+  }, [onClose, reducedMotion])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -39,11 +42,19 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
     return () => window.removeEventListener('keydown', onKey)
   }, [close, index, photos.length, onNav])
 
-  if (!photo) return null
+  if (!photo || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
+      onKeyDown={(e) => {
+        if (e.key !== 'Tab') return
+        const controls = e.currentTarget.querySelectorAll<HTMLButtonElement>('button')
+        const first = controls[0]
+        const last = controls[controls.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+      }}
       onClick={close}
       style={{
         position: 'fixed',
@@ -64,9 +75,9 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
         <button
           onClick={(e) => { e.stopPropagation(); onNav(index - 1) }}
           aria-label="Previous image"
-          style={navBtnStyle('left')}
+          className="modal-edge-control lightbox-previous"
         >
-          ←
+          {'[ < ]'}
         </button>
       )}
 
@@ -89,9 +100,9 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
         <button
           onClick={(e) => { e.stopPropagation(); onNav(index + 1) }}
           aria-label="Next image"
-          style={navBtnStyle('right')}
+          className="modal-edge-control lightbox-next"
         >
-          →
+          {'[ > ]'}
         </button>
       )}
 
@@ -99,45 +110,12 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
       <button
         onClick={close}
         aria-label="Close lightbox"
-        style={{
-          position: 'absolute',
-          top: 20,
-          right: 20,
-          background: 'transparent',
-          border: '1px solid rgba(255,255,255,0.3)',
-          color: '#fff',
-          borderRadius: '50%',
-          width: 36,
-          height: 36,
-          cursor: 'pointer',
-          fontSize: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        ref={closeBtnRef}
+        className="modal-edge-control modal-close-control lightbox-close"
       >
-        ×
+        <span aria-hidden>{'[ X ]'}</span>
       </button>
-    </div>
+    </div>,
+    document.body
   )
-}
-
-function navBtnStyle(side: 'left' | 'right'): React.CSSProperties {
-  return {
-    position: 'absolute',
-    [side]: 20,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.3)',
-    color: '#fff',
-    borderRadius: '50%',
-    width: 40,
-    height: 40,
-    cursor: 'pointer',
-    fontSize: 18,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  }
 }

@@ -218,6 +218,7 @@ export const projectSchema = defineType({
           fields: [
             defineField({ name: 'file', type: 'file' }),
             defineField({ name: 'caption', type: 'string' }),
+            defineField({ name: 'poster', title: 'Video preview image', type: 'image', options: { hotspot: true }, description: 'Optional still shown before playback. Overrides the automatic preview.' }),
             defineField({
               name: 'displayRole',
               title: 'Show in',
@@ -241,6 +242,7 @@ export const projectSchema = defineType({
           fields: [
             defineField({ name: 'url', type: 'url', description: 'YouTube or Vimeo URL' }),
             defineField({ name: 'caption', type: 'string' }),
+            defineField({ name: 'poster', title: 'Video preview image', type: 'image', options: { hotspot: true }, description: 'Optional still shown before playback. Overrides the automatic preview.' }),
           ],
         },
       ],

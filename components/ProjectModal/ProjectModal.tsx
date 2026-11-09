@@ -8,16 +8,16 @@ import type { WallProject, LinkedItem } from '@/lib/types'
 import type { FilterType } from '@/lib/types'
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
 function formatProjectDate(date: string) {
   const stored = date.trim().match(/^(\d{4})-(0[1-9]|1[0-2])$/)
-  if (stored) return `${MONTH_NAMES[Number(stored[2]) - 1]} ${stored[1]}`
+  if (stored) return `${MONTH_NAMES[Number(stored[2]) - 1]} ’${stored[1].slice(-2)}`
   const legacy = date.trim().match(/^(0?[1-9]|1[0-2])-(\d{4})$/)
-  if (legacy) return `${MONTH_NAMES[Number(legacy[1]) - 1]} ${legacy[2]}`
-  return date
+  if (legacy) return `${MONTH_NAMES[Number(legacy[1]) - 1]} ’${legacy[2].slice(-2)}`
+  return date.trim()
 }
 
 interface ProjectModalProps {
@@ -32,12 +32,13 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
   const subtitle = project.subtitleType === 'None' && project.subtitleName
     ? `“${project.subtitleName}”`
     : project.subtitleName
+  const date = project.date ? formatProjectDate(project.date) : ''
   const scrimRef    = useRef<HTMLDivElement>(null)
   const modalRef    = useRef<HTMLDivElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const prefersReducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const isMobileViewport = () => window.matchMedia('(max-width: 640px), (hover: none)').matches
+  const isMobileViewport = () => window.matchMedia('(max-width: 800px), (hover: none)').matches
 
   const close = useCallback(() => {
     if (prefersReducedMotion || isMobileViewport()) { onClose(); return }
@@ -46,18 +47,23 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
   }, [onClose, prefersReducedMotion])
 
   useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!prefersReducedMotion && !isMobileViewport()) {
       gsap.fromTo(scrimRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 })
       gsap.fromTo(modalRef.current,
         { autoAlpha: 0, scale: 0.96 },
-        { autoAlpha: 1, scale: 1, duration: 0.25, ease: 'power2.out' }
+        { autoAlpha: 1, scale: 1, duration: 0.25, ease: 'power2.out', onComplete: () => { closeBtnRef.current?.focus() } }
       )
+    } else {
+      gsap.set([scrimRef.current, modalRef.current], { autoAlpha: 1 })
+      closeBtnRef.current?.focus()
     }
-    closeBtnRef.current?.focus()
+    return () => { if (opener?.isConnected) opener.focus() }
   }, [prefersReducedMotion])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector('[aria-label="Image lightbox"]')) return
       if (e.key === 'Escape') close()
       if (e.key === 'ArrowLeft') onPrevious?.()
       if (e.key === 'ArrowRight') onNext?.()
@@ -66,12 +72,16 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
     return () => window.removeEventListener('keydown', onKey)
   }, [close, onPrevious, onNext])
 
+  useEffect(() => {
+    modalRef.current?.querySelectorAll('.project-modal-card, .modal-info, .modal-media').forEach(panel => panel.scrollTo(0, 0))
+  }, [project.id])
+
   // Focus trap
   useEffect(() => {
     const modal = modalRef.current
     if (!modal) return
     const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      'button:not(:disabled), [href], input, select, textarea, iframe, video[controls], audio[controls], [tabindex]:not([tabindex="-1"])'
     )
     const first = focusable[0]
     const last  = focusable[focusable.length - 1]
@@ -85,7 +95,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
     }
     modal.addEventListener('keydown', trap)
     return () => modal.removeEventListener('keydown', trap)
-  }, [])
+  }, [project])
 
   return (
     <>
@@ -95,43 +105,20 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
         className="project-modal-scrim"
         onClick={close}
         aria-hidden
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.15)',
-          zIndex: 20,
-          visibility: prefersReducedMotion ? 'visible' : 'hidden',
-        }}
+        style={{ visibility: prefersReducedMotion ? 'visible' : 'hidden' }}
       />
 
       {/* Centering shell — pointer-events none so clicks outside card hit scrim */}
       <div
         className="project-modal-shell"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 21,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          padding: '24px',
-        }}
       >
-        {/* Modal frame — controls sit over its outside edges */}
+        {/* Frame keeps the toolbar visible while content scrolls. */}
         <div
           ref={modalRef}
           role="dialog"
           aria-modal
           aria-label={`Project: ${project.title}`}
-          className="project-modal-frame"
-          style={{
-            width: 'min(1100px, 100%)',
-            height: 'min(700px, 88vh)',
-            position: 'relative',
-            pointerEvents: 'none',
-            visibility: prefersReducedMotion ? 'visible' : 'hidden',
-          }}
+          className="project-modal-frame" style={{ visibility: prefersReducedMotion ? 'visible' : 'hidden' }}
         >
           <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close project" className="modal-edge-control modal-close-control">×</button>
           <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous project by date" className="modal-edge-control modal-previous-control">{'<'}</button>
@@ -139,46 +126,28 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
 
           <div
             className="project-modal-card"
-            style={{
-              width: '100%',
-              height: '100%',
-              background: '#0a0a0a',
-              border: '1px solid rgba(255,255,255,0.1)',
-              display: 'flex',
-              overflow: 'hidden',
-              pointerEvents: 'auto',
-            }}
           >
             {(project.videos ?? [])[0] && (
               <div className="mobile-featured-video">
-                <MediaItem kind="video" data={project.videos[0]} />
+                <MediaItem kind="video" data={project.videos[0]} fallbackPoster={project.photos[0]?.url ?? project.thumbnail?.url} />
               </div>
             )}
 
             {/* Left: info */}
             <div
               className="modal-info"
-              style={{
-                width: '38%',
-                flexShrink: 0,
-                padding: '36px 32px',
-                borderRight: '1px solid rgba(255,255,255,0.08)',
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
             >
 
             {/* Title */}
-            <h2 style={{ fontSize: 'clamp(18px, 2.5vw, 32px)', fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.05, letterSpacing: '-0.04em' }}>
+            <h2 className="project-modal-title">
               {project.title}
             </h2>
 
             {/* Subtitle credit line: "By Camille Henrot", "El Boca Quedó", etc. */}
-            {project.subtitleName && (
-              <p style={{ margin: '10px 0 0', fontSize: 'clamp(13px, 1.2vw, 16px)', color: '#fff', letterSpacing: '-0.01em', fontWeight: 500, lineHeight: 1.2 }}>
-                {project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
-                {project.subtitleUrl ? (
+            {(subtitle || date) && (
+              <p className="modal-subtitle">
+                {subtitle && project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
+                {subtitle && project.subtitleUrl ? (
                   <a
                     href={project.subtitleUrl}
                     target="_blank"
@@ -190,33 +159,22 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
                     {subtitle}
                   </a>
                 ) : subtitle}
+                {date && <>{subtitle && ', '}<span className="modal-credit-date">{date}</span></>}
               </p>
             )}
 
-            {/* Meta grid */}
-            <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {project.date && <Meta label="Date" value={formatProjectDate(project.date)} />}
-              <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />
-              {project.roles && project.roles.length > 0 && (
-                <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />
-              )}
-              {project.collaborators && project.collaborators.length > 0 && (
-                <MetaLinks label="With" items={project.collaborators} />
-              )}
-              {project.presentedAt && project.presentedAt.length > 0 && (
-                <MetaLinks label="At" items={project.presentedAt} />
-              )}
-              {project.watchOn && project.watchOn.length > 0 && (
-                <MetaLinks label="Watch" items={project.watchOn} />
-              )}
-              {project.press && project.press.length > 0 && (
-                <MetaLinks label="Press" items={project.press} />
-              )}
-            </div>
+            <dl className="modal-metadata">
+              {!!project.collaborators?.length && <MetaLinks label="With" items={project.collaborators} />}
+              {!!project.roles?.length && <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />}
+              {!!project.presentedAt?.length && <MetaLinks label="At" items={project.presentedAt} />}
+              {!!project.press?.length && <MetaLinks label="Press" items={project.press} />}
+              {!!project.watchOn?.length && <MetaLinks label="Watch" items={project.watchOn} />}
+              {!!project.type.length && <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />}
+            </dl>
 
             {/* Description */}
             {project.description && (
-              <p style={{ marginTop: 24, width: '100%', fontSize: 13, lineHeight: 1.75, color: 'rgba(255,255,255,0.65)', whiteSpace: 'pre-line', textAlign: 'justify' }}>
+              <p className="modal-description">
                 {project.description}
               </p>
             )}
@@ -239,8 +197,8 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
             </div>
 
             {/* Right: media */}
-            <div className="modal-media" style={{ flex: 1, padding: '36px 32px', overflowY: 'auto' }}>
-              <MediaReel project={project} />
+            <div className="modal-media">
+              <MediaReel key={project.id} project={project} />
             </div>
           </div>
         </div>
@@ -249,54 +207,30 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
   )
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: 'rgba(255,255,255,0.38)', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: 'rgba(255,255,255,0.85)' }}>{value}</span>
-    </div>
-  )
-}
-
 function MetaFilter({ label, items, onSelect }: { label: string; items: string[]; onSelect: (value: string) => void }) {
   return (
-    <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: 'rgba(255,255,255,0.38)', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ display: 'flex', flexWrap: 'wrap', gap: '0 6px' }}>
-        {items.map((item, i) => (
-          <span key={item}>
-            <button type="button" onClick={() => onSelect(item)}
-              style={{ padding: 0, border: 0, background: 'none', color: 'rgba(255,255,255,0.85)', font: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2, cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.85)')}
-            >{item}</button>{i < items.length - 1 ? (label === 'Type' ? ' / ' : ', ') : ''}
-          </span>
-        ))}
-      </span>
+    <div className="modal-meta-row">
+      <dt>{label}</dt>
+      <dd>{items.map((item, i) => (
+        <span key={item}>
+          {i > 0 && <span className="modal-meta-separator"> / </span>}
+          <button type="button" onClick={() => onSelect(item)}>{item}</button>
+        </span>
+      ))}</dd>
     </div>
   )
 }
 
 function MetaLinks({ label, items }: { label: string; items: LinkedItem[] }) {
   return (
-    <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-      <span style={{ color: 'rgba(255,255,255,0.38)', width: 52, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.35 }}>
-        {items.map((item, i) => (
-          <span key={`${item.name}-${item.url ?? ''}-${i}`}>
-            {item.url ? (
-              <a href={item.url} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'inherit')}
-              >
-                {item.name}
-              </a>
-            ) : item.name}
-            {i < items.length - 1 ? ', ' : ''}
-          </span>
-        ))}
-      </span>
+    <div className="modal-meta-row">
+      <dt>{label}</dt>
+      <dd>{items.map((item, i) => (
+        <span key={`${item.name}-${item.url ?? ''}-${i}`}>
+          {i > 0 && <span className="modal-meta-separator"> / </span>}
+          {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.name}</a> : item.name}
+        </span>
+      ))}</dd>
     </div>
   )
 }

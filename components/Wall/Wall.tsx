@@ -17,8 +17,9 @@ interface WallProps {
 
 const TAP_MAX_DIST = 8
 const TAP_MAX_MS   = 350
-const DESKTOP_ZOOM = 0.9
-const MOBILE_ZOOM = 0.72 * 0.68
+const WALL_SCALE = 0.75
+const DESKTOP_ZOOM = 0.9 * WALL_SCALE
+const MOBILE_ZOOM = 0.72 * 0.68 * WALL_SCALE
 const DRIFT_SPEED = 0.18
 const DRIFT_RESUME_MS = 1600
 const MOBILE_TAP_OPEN_MS = 750

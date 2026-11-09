@@ -22,6 +22,7 @@ export interface PhotoAsset {
 
 export interface UploadedVideoItem {
   _type: 'uploadedVideo'
+  posterUrl?: string
   _key: string
   fileUrl: string
   caption?: string
@@ -29,6 +30,7 @@ export interface UploadedVideoItem {
 
 export interface LinkedVideoItem {
   _type: 'linkedVideo'
+  posterUrl?: string
   _key: string
   url: string
   caption?: string

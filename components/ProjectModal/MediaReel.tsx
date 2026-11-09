@@ -13,10 +13,10 @@ export default function MediaReel({ project }: MediaReelProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', paddingLeft: 0 }}>
+    <div className="modal-media-reel">
       {(project.videos ?? []).map((video, index) => (
         <div key={video._key} className={index === 0 ? 'modal-reel-first-video' : undefined}>
-          <MediaItem kind="video" data={video} />
+          <MediaItem kind="video" data={video} fallbackPoster={project.photos[0]?.url ?? project.thumbnail?.url} />
         </div>
       ))}
 

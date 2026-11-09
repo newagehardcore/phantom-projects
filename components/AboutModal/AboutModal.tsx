@@ -27,14 +27,17 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
   }, [onClose, prefersReducedMotion])
 
   useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!prefersReducedMotion) {
       gsap.fromTo(scrimRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 })
       gsap.fromTo(cardRef.current,
         { autoAlpha: 0, scale: 0.96 },
-        { autoAlpha: 1, scale: 1, duration: 0.25, ease: 'power2.out' }
+        { autoAlpha: 1, scale: 1, duration: 0.25, ease: 'power2.out', onComplete: () => { closeBtnRef.current?.focus() } }
       )
+    } else {
+      closeBtnRef.current?.focus()
     }
-    closeBtnRef.current?.focus()
+    return () => { if (opener?.isConnected) opener.focus() }
   }, [prefersReducedMotion])
 
   useEffect(() => {
@@ -68,13 +71,15 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
     <>
       {/* Scrim */}
       <div
+        className="about-modal-scrim"
         ref={scrimRef}
         onClick={close}
         aria-hidden
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.72)',
+          background: 'rgba(0,0,0,0.52)',
+          backdropFilter: 'blur(12px)',
           zIndex: 20,
           visibility: prefersReducedMotion ? 'visible' : 'hidden',
         }}
@@ -83,16 +88,6 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
       {/* Centering shell */}
       <div
         className="about-modal-shell"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 21,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          padding: '24px',
-        }}
       >
         {/* Card */}
         <div
@@ -100,30 +95,13 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
           role="dialog"
           aria-modal
           aria-label="About Phantom Projects"
-          className="about-modal-card"
-          style={{
-            width: 'min(800px, 100%)',
-            position: 'relative',
-            background: '#0a0a0a',
-            border: '1px solid rgba(255,255,255,0.1)',
-            display: 'flex',
-            overflow: 'hidden',
-            pointerEvents: 'auto',
-            visibility: prefersReducedMotion ? 'visible' : 'hidden',
-          }}
+          className="about-modal-card" style={{ visibility: prefersReducedMotion ? 'visible' : 'hidden' }}
         >
-          <button
-            ref={closeBtnRef}
-            type="button"
-            onClick={close}
-            aria-label="Close about"
-            className="modal-edge-control about-close-control"
-          >
-            ×
-          </button>
+          <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close about" className="modal-edge-control about-close-control">×</button>
+          <div className="about-modal-body">
 
           {/* Left: bio + socials */}
-          <div className="about-modal-copy" style={{ flex: 1, padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div className="about-modal-copy">
             {about.headerDescription && (
               <h2 className="about-modal-heading">
                 {about.headerDescription}
@@ -131,7 +109,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
             )}
 
             {about.bio && (
-              <p style={{ marginTop: 20, fontSize: 14, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', maxWidth: 380, whiteSpace: 'pre-line', textAlign: 'justify' }}>
+              <p className="modal-description">
                 {about.bio}
               </p>
             )}
@@ -147,7 +125,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
                     >
                       {s.label}
                     </a>
-                    {i < socials.length - 1 ? ', ' : ''}
+                    <span aria-hidden="true"> ↗</span>
                   </span>
                 ))}
               </div>
@@ -156,7 +134,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
 
           {/* Right: photo */}
           {about.photo && (
-            <div className="about-modal-image" style={{ width: '52%', flexShrink: 0, position: 'relative', overflow: 'hidden', minHeight: 320 }}>
+            <div className="about-modal-image">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={about.photo.url}
@@ -165,6 +143,7 @@ export default function AboutModal({ about, onClose }: AboutModalProps) {
               />
             </div>
           )}
+          </div>
         </div>
       </div>
     </>

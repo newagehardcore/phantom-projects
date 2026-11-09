@@ -9,7 +9,7 @@ function getYouTubeVideoId(videoUrl: URL): string | null {
   return null
 }
 
-async function getYouTubeThumbnailDimensions(videoUrl: URL): Promise<{ width: number; height: number } | null> {
+async function getYouTubeThumbnailDimensions(videoUrl: URL): Promise<{ width: number; height: number; thumbnailUrl: string } | null> {
   const videoId = getYouTubeVideoId(videoUrl)
   if (!videoId || !/^[\w-]{6,}$/.test(videoId)) return null
 
@@ -17,10 +17,10 @@ async function getYouTubeThumbnailDimensions(videoUrl: URL): Promise<{ width: nu
   // unlike YouTube's default 16:9 player dimensions.
   for (const quality of ['maxresdefault', 'sddefault', 'hqdefault']) {
     try {
-      const response = await fetch(`https://i.ytimg.com/vi/${videoId}/${quality}.jpg`, { next: { revalidate: 86400 } })
+      const response = await fetch(`https://i.ytimg.com/vi/${videoId}/${quality}.jpg`, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(5000) })
       if (!response.ok) continue
       const dimensions = getJpegDimensions(new Uint8Array(await response.arrayBuffer()))
-      if (dimensions) return dimensions
+      if (dimensions) return { ...dimensions, thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/${quality}.jpg` }
     } catch {
       // Try the next available thumbnail size.
     }
@@ -87,16 +87,17 @@ export async function GET(request: Request) {
 
     const response = await fetch(endpoint, {
       headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
       next: { revalidate: 86400 },
     })
     if (!response.ok) return Response.json({ error: 'Video dimensions unavailable' }, { status: 502 })
 
-    const metadata = await response.json() as { width?: number; height?: number }
+    const metadata = await response.json() as { width?: number; height?: number; thumbnail_url?: string }
     if (!Number.isFinite(metadata.width) || !Number.isFinite(metadata.height) || !metadata.width || !metadata.height) {
       return Response.json({ error: 'Video dimensions unavailable' }, { status: 502 })
     }
 
-    return Response.json({ width: metadata.width, height: metadata.height }, {
+    return Response.json({ width: metadata.width, height: metadata.height, thumbnailUrl: metadata.thumbnail_url }, {
       headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400' },
     })
   } catch {
