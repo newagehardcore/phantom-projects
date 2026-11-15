@@ -5,14 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Wall from './Wall/Wall'
 import HUD from './HUD/HUD'
 import ProjectModal from './ProjectModal/ProjectModal'
-import AboutModal from './AboutModal/AboutModal'
 import { layoutProjects } from '@/lib/wallUtils'
-import type { Project, WallProject, About, FilterType } from '@/lib/types'
+import type { Project, WallProject, FilterType } from '@/lib/types'
 import { TILE_W, TILE_H } from '@/lib/wallUtils'
 
 interface MainSceneProps {
   projects: Project[]
-  about: About
 }
 
 const MONTHS: Record<string, number> = {
@@ -33,7 +31,7 @@ function projectDateValue(date?: string) {
   return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
 }
 
-export default function MainScene({ projects, about }: MainSceneProps) {
+export default function MainScene({ projects }: MainSceneProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -73,7 +71,6 @@ export default function MainScene({ projects, about }: MainSceneProps) {
   }, [projects, activeFilter, activeRole, searchQuery])
 
   const activeProjectSlug = searchParams.get('project')
-  const isAboutOpen = searchParams.get('about') === '1'
 
   // Find the active project. Search wallProjects first; if filter changed while
   // modal is open the slug may not be there, so fall back to raw projects.
@@ -134,18 +131,6 @@ export default function MainScene({ projects, about }: MainSceneProps) {
     closeProject()
   }, [closeProject])
 
-  const openAbout = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('about', '1')
-    router.push(`?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
-
-  const closeAbout = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('about')
-    router.push(`?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
-
   const returnHome = useCallback(() => {
     setActiveFilter('All')
     setActiveRole(null)
@@ -154,7 +139,7 @@ export default function MainScene({ projects, about }: MainSceneProps) {
     router.push('/', { scroll: false })
   }, [router])
 
-  const isModalOpen = !!activeProject || isAboutOpen
+  const isModalOpen = !!activeProject
 
   return (
     <>
@@ -168,7 +153,6 @@ export default function MainScene({ projects, about }: MainSceneProps) {
       <HUD
         activeFilter={activeFilter}
         onFilterChange={(filter) => { setActiveFilter(filter); setActiveRole(null) }}
-        onAbout={openAbout}
         onHome={returnHome}
         hoveredProject={hoveredProject}
         visible={!isModalOpen}
@@ -182,12 +166,6 @@ export default function MainScene({ projects, about }: MainSceneProps) {
           onFilter={filterFromModal}
           onPrevious={previousProject ? () => navigateProject(previousProject.slug) : undefined}
           onNext={nextProject ? () => navigateProject(nextProject.slug) : undefined}
-        />
-      )}
-      {isAboutOpen && (
-        <AboutModal
-          about={about}
-          onClose={closeAbout}
         />
       )}
     </>

@@ -1,41 +1,39 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import MainScene from '@/components/MainScene'
-import { fetchProjects, fetchAbout } from '@/lib/sanity'
-import { DUMMY_ABOUT } from '@/lib/dummy-data'
+import { fetchProjects } from '@/lib/sanity'
 
-function Scene({ projects, about }: {
+function Scene({ projects }: {
   projects: Awaited<ReturnType<typeof fetchProjects>>
-  about: NonNullable<Awaited<ReturnType<typeof fetchAbout>>>
 }) {
   return (
     <Suspense fallback={null}>
-      <MainScene projects={projects} about={about} />
+      <MainScene projects={projects} />
     </Suspense>
   )
 }
 
 async function ProjectScene() {
   let projects: Awaited<ReturnType<typeof fetchProjects>> = []
-  let about = DUMMY_ABOUT
   try {
-    const [fetchedProjects, fetchedAbout] = await Promise.all([
-      fetchProjects(),
-      fetchAbout().catch(() => null),
-    ])
-    projects = fetchedProjects
-    about = fetchedAbout ?? DUMMY_ABOUT
+    projects = await fetchProjects()
   } catch (e) {
     console.error('[page] Sanity project fetch failed', e)
   }
 
-  return <Scene projects={projects} about={about} />
+  return <Scene projects={projects} />
 }
 
-export default async function Page() {
+export default async function Page({ searchParams }: {
+  searchParams: Promise<{ about?: string | string[] }>
+}) {
   await connection()
+  const { about } = await searchParams
+  if (about === '1' || (Array.isArray(about) && about[0] === '1')) redirect('/about')
+
   return (
-    <Suspense fallback={<Scene projects={[]} about={DUMMY_ABOUT} />}>
+    <Suspense fallback={<Scene projects={[]} />}>
       <ProjectScene />
     </Suspense>
   )

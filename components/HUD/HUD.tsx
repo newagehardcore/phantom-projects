@@ -10,7 +10,6 @@ import type { FilterType, WallProject } from '@/lib/types'
 interface HUDProps {
   activeFilter: FilterType
   onFilterChange: (f: FilterType) => void
-  onAbout: () => void
   onHome: () => void
   hoveredProject: WallProject | null
   visible: boolean
@@ -25,7 +24,7 @@ const transitionStyle = (visible: boolean): React.CSSProperties => ({
 })
 
 export default function HUD({
-  activeFilter, onFilterChange, onAbout, onHome, hoveredProject, visible, searchQuery, onSearchChange,
+  activeFilter, onFilterChange, onHome, hoveredProject, visible, searchQuery, onSearchChange,
 }: HUDProps) {
   const [mobileLogoWord, setMobileLogoWord] = useState<'PHANTOM' | 'PROJECTS'>('PHANTOM')
 
@@ -76,9 +75,7 @@ export default function HUD({
           <span className="desktop-site-title">{mobileLogoWord}</span>
           <span className="mobile-site-title">{mobileLogoWord}</span>
         </button>
-        <div className="mobile-about">
-          <AboutButton onClick={onAbout} />
-        </div>
+        <AboutButton />
       </header>
 
       <Readout project={hoveredProject} />
@@ -101,9 +98,6 @@ export default function HUD({
       >
         <FilterBar active={activeFilter} onChange={onFilterChange} />
         <div className="wall-secondary-controls" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          <div className="desktop-about-control">
-            <AboutButton onClick={onAbout} />
-          </div>
           <SearchBar value={searchQuery} onChange={onSearchChange} />
         </div>
       </footer>
