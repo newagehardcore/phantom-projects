@@ -2,7 +2,7 @@
 
 import FlashingTitle from '../FlashingTitle'
 import FilterBar from './FilterBar'
-import AboutButton from './AboutButton'
+import SiteNav from '../SiteNav'
 import Readout from './Readout'
 import SearchBar from './SearchBar'
 import type { FilterType, WallProject } from '@/lib/types'
@@ -28,7 +28,6 @@ export default function HUD({
 }: HUDProps) {
   return (
     <>
-      {/* Top: site name + about only */}
       <header
         className="site-header"
         style={{
@@ -65,7 +64,7 @@ export default function HUD({
         >
           <FlashingTitle />
         </button>
-        <AboutButton />
+        <SiteNav active="Projects" onProjects={onHome} />
       </header>
 
       <Readout project={hoveredProject} />
