@@ -57,7 +57,7 @@ export default function MediaItem(props: MediaItemData) {
       }
       return (
         <div style={{ marginBottom: 16 }}>
-          <LinkedVideoEmbed key={data.url} url={data.url} embedUrl={embedUrl} title={data.caption ?? 'Video'} posterUrl={data.posterUrl} dimensions={data.dimensions} />
+          <LinkedVideoEmbed key={data.url} url={data.url} embedUrl={embedUrl} title={data.caption ?? 'Video'} posterUrl={data.posterUrl} />
           {data.caption && (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{data.caption}</div>
           )}
@@ -135,19 +135,19 @@ function UploadedVideo({ src, posterUrl, title }: { src: string; posterUrl?: str
   )
 }
 
-function LinkedVideoEmbed({ url, embedUrl, title, posterUrl, dimensions: knownDimensions }: {
+function LinkedVideoEmbed({ url, embedUrl, title, posterUrl }: {
   url: string
   embedUrl: string
   title: string
   posterUrl?: string
-  dimensions?: { width: number; height: number }
 }) {
+  const isShort = /^https?:\/\/(?:www\.|m\.)?youtube\.com\/shorts\//i.test(url)
   const [fetchedDimensions, setFetchedDimensions] = useState({ width: 16, height: 9 })
   const [thumbnailUrl, setThumbnailUrl] = useState<string>()
   const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
-    if (knownDimensions && posterUrl) return
+    if (isShort && posterUrl) return
     const controller = new AbortController()
     fetch(`/api/video-dimensions?preview=1&url=${encodeURIComponent(url)}`, { signal: controller.signal })
       .then(response => response.ok ? response.json() as Promise<{ width: number; height: number; thumbnailUrl?: string }> : null)
@@ -157,9 +157,9 @@ function LinkedVideoEmbed({ url, embedUrl, title, posterUrl, dimensions: knownDi
       })
       .catch(() => {})
     return () => controller.abort()
-  }, [url, knownDimensions, posterUrl])
+  }, [url, isShort, posterUrl])
 
-  const dimensions = knownDimensions ?? fetchedDimensions
+  const dimensions = isShort ? { width: 9, height: 16 } : fetchedDimensions
   const aspectRatio = `${dimensions.width} / ${dimensions.height}`
   const autoplayUrl = `${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=1`
   return (

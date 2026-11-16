@@ -2,8 +2,6 @@ import { createClient } from '@sanity/client'
 import imageUrlBuilder from '@sanity/image-url'
 import { unstable_cache } from 'next/cache'
 import type { Project, About } from './types'
-import videoPosterAssets from './video-poster-assets.json'
-import linkedVideoPosters from './linked-video-posters.json'
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
 const dataset   = process.env.NEXT_PUBLIC_SANITY_DATASET!
@@ -17,13 +15,6 @@ export const sanityClient = createClient({
 })
 
 const builder = imageUrlBuilder(sanityClient)
-const generatedPosterIds = new Set(videoPosterAssets)
-const linkedPosters = new Map(Object.entries(linkedVideoPosters))
-
-function getGeneratedPosterUrl(fileUrl: string) {
-  const assetId = fileUrl?.match(/\/([a-f0-9]{40})\.[a-z0-9]+$/i)?.[1]
-  if (assetId && generatedPosterIds.has(assetId)) return `/video-posters/${assetId}.webp`
-}
 
 export function urlFor(source: unknown) {
   return builder.image(source as Parameters<typeof builder.image>[0])
@@ -38,7 +29,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
     }>
   }
 
-  const projects = await sanityClient.withConfig({ useCdn: true }).fetch<RawProject[]>(`
+  const projects = await sanityClient.withConfig({ useCdn: false }).fetch<RawProject[]>(`
     *[_type == "project"] | order(order asc) {
       _id,
       "id": _id,
@@ -63,6 +54,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
         },
         ...videos[_type == "uploadedVideo" && displayRole in ["thumbnail", "both"]]{
           "url": file.asset->url,
+          "posterUrl": poster.asset->url,
           "alt": coalesce(caption, ""),
           "type": "video",
         },
@@ -97,16 +89,11 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
   return projects.map((project) => ({
     ...project,
     photos: project.photos ?? [],
-    videos: (project.videos ?? []).map(video => {
-      if (video.posterUrl) return video
-      if (video._type === 'uploadedVideo') return { ...video, posterUrl: getGeneratedPosterUrl(video.fileUrl) }
-      const audited = linkedPosters.get(video.url)
-      return audited ? { ...video, ...audited } : video
-    }),
+    videos: project.videos ?? [],
     audio: project.audio ?? [],
     links: project.links ?? [],
     thumbnails: (project.thumbnails ?? []).map((thumb) => {
-      if (thumb.type === 'video') return { ...thumb, posterUrl: getGeneratedPosterUrl(thumb.url) }
+      if (thumb.type === 'video') return thumb
       const source = thumb
       return {
         ...thumb,

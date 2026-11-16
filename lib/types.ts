@@ -31,7 +31,6 @@ export interface UploadedVideoItem {
 export interface LinkedVideoItem {
   _type: 'linkedVideo'
   posterUrl?: string
-  dimensions?: { width: number; height: number }
   _key: string
   url: string
   caption?: string
