@@ -1,14 +1,14 @@
 'use client'
 
 import { useRef, useId, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import type { About } from '@/lib/types'
 import { clientGroups, pressClips } from './aboutContent'
 
 const tabs = ['Bio', 'Press', 'Credits'] as const
 type AboutTab = (typeof tabs)[number]
 
-export default function AboutSections({ about }: { about: About }) {
+export default function AboutSections({ about, portrait }: { about: About; portrait: ReactNode }) {
   const [tab, setTab] = useState<AboutTab>('Bio')
   const tabsId = useId()
   const tabListRef = useRef<HTMLDivElement>(null)
@@ -48,7 +48,8 @@ export default function AboutSections({ about }: { about: About }) {
   ]
 
   return (
-    <>
+    <div className="about-page-sections" data-bio-layout={tab === 'Bio' && portrait ? '' : undefined}>
+      {portrait}
       <div ref={tabListRef} className="about-page-tabs" role="tablist" aria-label="About sections">
         {tabs.map((name, index) => (
           <button
@@ -93,16 +94,14 @@ export default function AboutSections({ about }: { about: About }) {
             {socials.length > 0 && (
               <div className="about-socials">
                 {socials.map((s, i) => (
-                  <span key={`${s.label}-${s.url}-${i}`}>
-                    <a
-                      href={s.url}
-                      target={s.url.startsWith('mailto:') ? undefined : '_blank'}
-                      rel={s.url.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
-                    >
-                      {s.label}
-                    </a>
-                    <span aria-hidden="true"> ↗</span>
-                  </span>
+                  <a
+                    key={`${s.label}-${s.url}-${i}`}
+                    href={s.url}
+                    target={s.url.startsWith('mailto:') ? undefined : '_blank'}
+                    rel={s.url.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
+                  >
+                    {s.label}
+                  </a>
                 ))}
               </div>
             )}
@@ -153,6 +152,6 @@ export default function AboutSections({ about }: { about: About }) {
           </section>
         ))}
       </div>
-    </>
+    </div>
   )
 }

@@ -16,7 +16,7 @@ export default function MediaReel({ project }: MediaReelProps) {
     <div className="modal-media-reel">
       {(project.videos ?? []).map((video, index) => (
         <div key={video._key} className={index === 0 ? 'modal-reel-first-video' : undefined}>
-          <MediaItem kind="video" data={video} fallbackPoster={project.photos[0]?.url ?? project.thumbnail?.url} />
+          <MediaItem kind="video" data={video} />
         </div>
       ))}
 

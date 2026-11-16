@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
 import MediaReel from './MediaReel'
 import MediaItem from './MediaItem'
+import ModalIcon from './ModalIcon'
 import type { WallProject, LinkedItem } from '@/lib/types'
 import type { FilterType } from '@/lib/types'
 
@@ -120,16 +121,22 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
           aria-label={`Project: ${project.title}`}
           className="project-modal-frame" style={{ visibility: prefersReducedMotion ? 'visible' : 'hidden' }}
         >
-          <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close project" className="modal-edge-control modal-close-control">×</button>
-          <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous project by date" className="modal-edge-control modal-previous-control">{'<'}</button>
-          <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next project by date" className="modal-edge-control modal-next-control">{'>'}</button>
+          <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close project" className="modal-edge-control modal-close-control">
+            <ModalIcon icon="close" />
+          </button>
+          <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous project by date" className="modal-edge-control modal-previous-control">
+            <ModalIcon icon="previous" />
+          </button>
+          <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next project by date" className="modal-edge-control modal-next-control">
+            <ModalIcon icon="next" />
+          </button>
 
           <div
             className="project-modal-card"
           >
             {(project.videos ?? [])[0] && (
               <div className="mobile-featured-video">
-                <MediaItem kind="video" data={project.videos[0]} fallbackPoster={project.photos[0]?.url ?? project.thumbnail?.url} />
+                <MediaItem kind="video" data={project.videos[0]} />
               </div>
             )}
 
@@ -143,11 +150,10 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
               {project.title}
             </h2>
 
-            {/* Subtitle credit line: "By Camille Henrot", "El Boca Quedó", etc. */}
-            {(subtitle || date) && (
+            {subtitle && (
               <p className="modal-subtitle">
-                {subtitle && project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
-                {subtitle && project.subtitleUrl ? (
+                {project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
+                {project.subtitleUrl ? (
                   <a
                     href={project.subtitleUrl}
                     target="_blank"
@@ -159,9 +165,9 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
                     {subtitle}
                   </a>
                 ) : subtitle}
-                {date && <>{subtitle && ', '}<span className="modal-credit-date">{date}</span></>}
               </p>
             )}
+            {date && <p className="modal-credit-date">{date}</p>}
 
             <dl className="modal-metadata">
               {!!project.collaborators?.length && <MetaLinks label="With" items={project.collaborators} />}

@@ -93,6 +93,7 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
         if (videoRef.current) {
           const v = videoRef.current
           v.style.display = 'block'
+          v.poster = thumb.posterUrl ?? ''
           v.src = thumb.url
           v.muted = true
           const onCanPlay = () => v.play().catch(() => {})
@@ -221,6 +222,7 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
         <video
           ref={setVideoRef}
           src={firstIsVideo ? firstThumb.url : undefined}
+          poster={firstIsVideo ? firstThumb.posterUrl : undefined}
           preload={firstIsVideo ? 'auto' : 'none'}
           loop
           playsInline

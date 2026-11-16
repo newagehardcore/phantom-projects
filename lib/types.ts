@@ -31,6 +31,7 @@ export interface UploadedVideoItem {
 export interface LinkedVideoItem {
   _type: 'linkedVideo'
   posterUrl?: string
+  dimensions?: { width: number; height: number }
   _key: string
   url: string
   caption?: string
@@ -70,7 +71,7 @@ export interface Project {
   watchOn?: LinkedItem[]
   thumbnail?: ThumbnailAsset
   /** All media shown cycling on the wall tile (role: thumbnail or both). */
-  thumbnails: { url: string; alt: string; type?: 'image' | 'video'; focus?: { x: number; y: number } }[]
+  thumbnails: { url: string; alt: string; type?: 'image' | 'video'; posterUrl?: string; focus?: { x: number; y: number } }[]
   photos: PhotoAsset[]
   videos: VideoItem[]
   audio: AudioItem[]

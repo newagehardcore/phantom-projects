@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import FlashingTitle from '../FlashingTitle'
 import FilterBar from './FilterBar'
 import AboutButton from './AboutButton'
 import Readout from './Readout'
@@ -26,15 +26,6 @@ const transitionStyle = (visible: boolean): React.CSSProperties => ({
 export default function HUD({
   activeFilter, onFilterChange, onHome, hoveredProject, visible, searchQuery, onSearchChange,
 }: HUDProps) {
-  const [mobileLogoWord, setMobileLogoWord] = useState<'PHANTOM' | 'PROJECTS'>('PHANTOM')
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setMobileLogoWord(word => word === 'PHANTOM' ? 'PROJECTS' : 'PHANTOM')
-    }, 750)
-    return () => window.clearInterval(timer)
-  }, [])
-
   return (
     <>
       {/* Top: site name + about only */}
@@ -72,8 +63,7 @@ export default function HUD({
             fontFamily: 'inherit',
           }}
         >
-          <span className="desktop-site-title">{mobileLogoWord}</span>
-          <span className="mobile-site-title">{mobileLogoWord}</span>
+          <FlashingTitle />
         </button>
         <AboutButton />
       </header>

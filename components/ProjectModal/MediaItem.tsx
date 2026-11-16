@@ -9,7 +9,7 @@ import type { PhotoAsset, VideoItem, AudioItem } from '@/lib/types'
 // Discriminated union passed to MediaItem so it knows which type to render
 export type MediaItemData =
   | { kind: 'photo'; data: PhotoAsset; index: number; onLightbox: (index: number) => void }
-  | { kind: 'video'; data: VideoItem; fallbackPoster?: string }
+  | { kind: 'video'; data: VideoItem }
   | { kind: 'audio'; data: AudioItem }
 
 export default function MediaItem(props: MediaItemData) {
@@ -39,7 +39,7 @@ export default function MediaItem(props: MediaItemData) {
     if (data._type === 'uploadedVideo') {
       return (
         <div style={{ marginBottom: 16 }}>
-          <UploadedVideo key={data.fileUrl} src={data.fileUrl} posterUrl={data.posterUrl} title={data.caption ?? 'Video'} fallbackPoster={props.fallbackPoster} />
+          <UploadedVideo key={data.fileUrl} src={data.fileUrl} posterUrl={data.posterUrl} title={data.caption ?? 'Video'} />
           {data.caption && (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{data.caption}</div>
           )}
@@ -48,9 +48,16 @@ export default function MediaItem(props: MediaItemData) {
     }
     if (data._type === 'linkedVideo') {
       const embedUrl = getEmbedUrl(data.url)
+      if (!embedUrl) {
+        return (
+          <div>
+            <a className="video-source-link" href={data.url} target="_blank" rel="noopener noreferrer">View on YouTube</a>
+          </div>
+        )
+      }
       return (
         <div style={{ marginBottom: 16 }}>
-          <LinkedVideoEmbed key={data.url} url={data.url} embedUrl={embedUrl} title={data.caption ?? 'Video'} posterUrl={data.posterUrl} fallbackPoster={props.fallbackPoster} />
+          <LinkedVideoEmbed key={data.url} url={data.url} embedUrl={embedUrl} title={data.caption ?? 'Video'} posterUrl={data.posterUrl} dimensions={data.dimensions} />
           {data.caption && (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{data.caption}</div>
           )}
@@ -68,7 +75,6 @@ export default function MediaItem(props: MediaItemData) {
 
 function VideoPreview({ poster, title, aspectRatio, onPlay }: { poster?: string; title: string; aspectRatio: string; onPlay: () => void }) {
   const [failedPoster, setFailedPoster] = useState<string>()
-  const [squarePoster, setSquarePoster] = useState<string>()
   return (
     <button type="button" className="video-preview" style={{ aspectRatio }} aria-label={`Play ${title}`} onClick={onPlay}>
       {poster && poster !== failedPoster && (
@@ -77,12 +83,6 @@ function VideoPreview({ poster, title, aspectRatio, onPlay }: { poster?: string;
           key={poster}
           src={poster}
           alt=""
-          className={poster === squarePoster ? 'video-preview-square' : undefined}
-          onLoad={({ currentTarget: { naturalWidth, naturalHeight } }) => {
-            if (Math.abs(naturalWidth - naturalHeight) <= Math.max(naturalWidth, naturalHeight) * 0.05) {
-              setSquarePoster(poster)
-            }
-          }}
           onError={() => setFailedPoster(poster)}
         />
       )}
@@ -91,7 +91,7 @@ function VideoPreview({ poster, title, aspectRatio, onPlay }: { poster?: string;
   )
 }
 
-function UploadedVideo({ src, posterUrl, title, fallbackPoster }: { src: string; posterUrl?: string; title: string; fallbackPoster?: string }) {
+function UploadedVideo({ src, posterUrl, title }: { src: string; posterUrl?: string; title: string }) {
   const [aspectRatio, setAspectRatio] = useState('16 / 9')
   const [generatedPoster, setGeneratedPoster] = useState<string>()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -114,7 +114,7 @@ function UploadedVideo({ src, posterUrl, title, fallbackPoster }: { src: string;
       <video
         ref={videoRef}
         src={src}
-        poster={posterUrl ?? generatedPoster ?? fallbackPoster}
+        poster={posterUrl ?? generatedPoster}
         preload="metadata"
         controls
         playsInline
@@ -127,7 +127,7 @@ function UploadedVideo({ src, posterUrl, title, fallbackPoster }: { src: string;
         style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
       />
       {!playing && <div style={{ position: 'absolute', inset: 0 }}>
-        <VideoPreview poster={posterUrl ?? generatedPoster ?? fallbackPoster} title={title} aspectRatio={aspectRatio} onPlay={() => {
+        <VideoPreview poster={posterUrl ?? generatedPoster} title={title} aspectRatio={aspectRatio} onPlay={() => {
           videoRef.current?.play().catch(() => setPlaying(false))
         }} />
       </div>}
@@ -135,28 +135,36 @@ function UploadedVideo({ src, posterUrl, title, fallbackPoster }: { src: string;
   )
 }
 
-function LinkedVideoEmbed({ url, embedUrl, title, posterUrl, fallbackPoster }: { url: string; embedUrl: string; title: string; posterUrl?: string; fallbackPoster?: string }) {
-  const [dimensions, setDimensions] = useState({ width: 16, height: 9 })
+function LinkedVideoEmbed({ url, embedUrl, title, posterUrl, dimensions: knownDimensions }: {
+  url: string
+  embedUrl: string
+  title: string
+  posterUrl?: string
+  dimensions?: { width: number; height: number }
+}) {
+  const [fetchedDimensions, setFetchedDimensions] = useState({ width: 16, height: 9 })
   const [thumbnailUrl, setThumbnailUrl] = useState<string>()
   const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
+    if (knownDimensions && posterUrl) return
     const controller = new AbortController()
     fetch(`/api/video-dimensions?preview=1&url=${encodeURIComponent(url)}`, { signal: controller.signal })
       .then(response => response.ok ? response.json() as Promise<{ width: number; height: number; thumbnailUrl?: string }> : null)
       .then(result => {
-        if (result && result.width > 0 && result.height > 0) setDimensions({ width: result.width, height: result.height })
+        if (result && result.width > 0 && result.height > 0) setFetchedDimensions({ width: result.width, height: result.height })
         if (result?.thumbnailUrl) setThumbnailUrl(result.thumbnailUrl)
       })
       .catch(() => {})
     return () => controller.abort()
-  }, [url])
+  }, [url, knownDimensions, posterUrl])
 
+  const dimensions = knownDimensions ?? fetchedDimensions
   const aspectRatio = `${dimensions.width} / ${dimensions.height}`
   const autoplayUrl = `${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=1`
   return (
     <div style={{ width: '100%', overflow: 'hidden', background: '#000' }}>
-      {!playing ? <VideoPreview poster={posterUrl ?? thumbnailUrl ?? fallbackPoster} title={title} aspectRatio={aspectRatio} onPlay={() => setPlaying(true)} /> : (
+      {!playing ? <VideoPreview poster={posterUrl ?? thumbnailUrl} title={title} aspectRatio={aspectRatio} onPlay={() => setPlaying(true)} /> : (
         <iframe
           src={autoplayUrl}
           title={title}

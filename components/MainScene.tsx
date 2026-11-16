@@ -103,22 +103,22 @@ export default function MainScene({ projects }: MainSceneProps) {
     (slug: string) => {
       const params = new URLSearchParams(searchParams.toString())
       params.set('project', slug)
-      router.push(`?${params.toString()}`, { scroll: false })
+      window.history.pushState(null, '', `?${params.toString()}`)
     },
-    [router, searchParams]
+    [searchParams]
   )
 
   const closeProject = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('project')
-    router.push(`?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
+    window.history.pushState(null, '', params.size ? `?${params.toString()}` : window.location.pathname)
+  }, [searchParams])
 
   const navigateProject = useCallback((slug: string) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('project', slug)
-    router.replace(`?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
+    window.history.replaceState(null, '', `?${params.toString()}`)
+  }, [searchParams])
 
   const filterFromModal = useCallback((filter: FilterType | { role: string }) => {
     if (typeof filter === 'string') {

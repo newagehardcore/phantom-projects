@@ -180,11 +180,12 @@ export function getShuffleTarget(
   return { x: target.x + target.w / 2, y: target.y + target.h / 2 }
 }
 
-export function getEmbedUrl(rawUrl: string): string {
+export function getEmbedUrl(rawUrl: string): string | null {
   try {
     const u = new URL(rawUrl)
     if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
       const vid = u.searchParams.get('v') || u.pathname.split('/').pop() || ''
+      if (!/^[\w-]{11}$/.test(vid) || /^\/(?:@|channel\/|user\/|c\/)/.test(u.pathname)) return null
       return `https://www.youtube.com/embed/${vid}`
     }
     if (u.hostname.includes('vimeo.com')) {
