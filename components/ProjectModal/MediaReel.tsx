@@ -13,7 +13,6 @@ interface MediaReelProps {
 const disArtPosters = new Map([
   ['/a-good-crisis', '/dis-art-a-good-crisis.webp'],
   ['/natural-gods', '/dis-art-natural-gods.webp'],
-  ['/the-method', '/dis-art-the-method.webp'],
 ])
 
 export function getProjectVideos(project: WallProject) {
