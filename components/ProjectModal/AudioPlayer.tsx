@@ -54,7 +54,7 @@ export default function AudioPlayer({ src, caption }: AudioPlayerProps) {
         onClick={toggle}
         aria-label={`${playing ? 'Pause' : 'Play'} ${title}`}
       >
-        {playing ? 'Ⅱ' : '▶'}
+        <span className={playing ? 'audio-pause-icon' : 'audio-play-icon'} aria-hidden="true" />
       </button>
       <div className="audio-player-progress">
         <input
