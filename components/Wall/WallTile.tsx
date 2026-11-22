@@ -24,6 +24,11 @@ const mediaStyle: React.CSSProperties = {
 // The z-index in Wall.tsx (center tiles on top) keeps the overlap invisible.
 const BLEED = 10
 
+function thumbnailPriority(thumb: WallProject['thumbnails'][number]) {
+  if (thumb.type === 'video') return 2
+  return thumb.type === 'videoPoster' ? 1 : 0
+}
+
 function hashInstanceId(value: string) {
   let hash = 2166136261
   for (let i = 0; i < value.length; i++) {
@@ -39,17 +44,16 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaAnimation = useRef<Animation | null>(null)
 
-  // Keep the CMS order within each media type, with videos leading every cycle.
+  // Keep CMS order within each type and start on video media whenever available.
   const thumbnails = useMemo(() => {
     const media = project.thumbnails?.length
       ? project.thumbnails
       : project.thumbnail ? [project.thumbnail] : []
-    return [...media].sort((a, b) =>
-      Number('type' in b && b.type === 'video') - Number('type' in a && a.type === 'video')
-    )
+    return media.filter(thumb => thumb.url).sort((a, b) => thumbnailPriority(b) - thumbnailPriority(a))
   }, [project.thumbnails, project.thumbnail])
   const instanceSeed = useMemo(() => hashInstanceId(project.id), [project.id])
-  const initialThumbIndex = thumbnails.length ? instanceSeed % thumbnails.length : 0
+  const startingThumbs = thumbnails.filter(thumb => thumbnailPriority(thumb) === thumbnailPriority(thumbnails[0]))
+  const initialThumbIndex = startingThumbs.length ? instanceSeed % startingThumbs.length : 0
   const cycleStep = instanceSeed % 2 === 0 ? 1 : -1
   const currentThumbIndex = useRef(initialThumbIndex)
   const firstThumb   = thumbnails[initialThumbIndex] ?? { url: '', alt: '' }
@@ -74,6 +78,7 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
   useEffect(() => {
     const imgs = thumbnails
     const imageElement = imgRef.current
+    const videoElement = videoRef.current
     const imageIndexes = imgs.flatMap((thumb, i) => ('type' in thumb && thumb.type === 'video') ? [] : [i])
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let stopTimer = () => {}
@@ -90,22 +95,20 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
       const thumb = imgs[currentThumbIndex.current]
       if ('type' in thumb && thumb.type === 'video') {
         if (imageElement) imageElement.style.display = 'none'
-        if (videoRef.current) {
-          const v = videoRef.current
+        if (videoElement) {
+          const v = videoElement
           v.style.display = 'block'
           v.poster = thumb.posterUrl ?? ''
           v.src = thumb.url
           v.muted = true
-          const onCanPlay = () => v.play().catch(() => {})
-          v.addEventListener('canplay', onCanPlay, { once: true })
-          v.load()
+          void v.play().catch(() => {})
         }
       } else {
-        if (videoRef.current) {
-          videoRef.current.pause()
-          videoRef.current.removeAttribute('src')
-          videoRef.current.load()
-          videoRef.current.style.display = 'none'
+        if (videoElement) {
+          videoElement.pause()
+          videoElement.removeAttribute('src')
+          videoElement.load()
+          videoElement.style.display = 'none'
         }
         if (imageElement) {
           const image = imageElement
@@ -161,10 +164,10 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
       stopTimer()
       stopAnimation()
       if (imageElement) imageElement.onload = null
-      if (videoRef.current) {
-        videoRef.current.pause()
-        videoRef.current.removeAttribute('src')
-        videoRef.current.load()
+      if (videoElement?.hasAttribute('src')) {
+        videoElement.pause()
+        videoElement.removeAttribute('src')
+        videoElement.load()
       }
     }
   }, [project.id, thumbnails, isHovered, instanceSeed, cycleStep])
@@ -226,7 +229,6 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
           preload={firstIsVideo ? 'auto' : 'none'}
           loop
           playsInline
-          onCanPlay={firstIsVideo ? (e) => { (e.currentTarget as HTMLVideoElement).play().catch(() => {}) } : undefined}
           style={{ ...mediaStyle, display: firstIsVideo ? 'block' : 'none' }}
         />
         <div className={`mobile-tile-title${isHovered ? ' is-visible' : ''}`}>

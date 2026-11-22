@@ -29,7 +29,7 @@ export default function MediaDropInput({ props, kind }: { props: ArrayOfObjectsI
         const asset = await client.assets.upload('file', file, { filename: file.name, contentType: file.type || undefined })
         const fileValue = { _type: 'file', asset: { _type: 'reference', _ref: asset._id } }
         const item = kind === 'video'
-          ? { _key: crypto.randomUUID().replaceAll('-', ''), _type: 'uploadedVideo', file: fileValue, caption: '', displayRole: 'project' }
+          ? { _key: crypto.randomUUID().replaceAll('-', ''), _type: 'uploadedVideo', file: fileValue, caption: '', displayRole: 'both' }
           : { _key: crypto.randomUUID().replaceAll('-', ''), _type: 'object', file: fileValue, caption: '' }
         props.onItemAppend(item)
       } catch {

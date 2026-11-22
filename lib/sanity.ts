@@ -20,7 +20,7 @@ export function urlFor(source: unknown) {
   return builder.image(source as Parameters<typeof builder.image>[0])
 }
 
-export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
+export async function fetchProjects(): Promise<Project[]> {
   type RawProject = Omit<Project, 'thumbnails'> & {
     thumbnails: Array<Project['thumbnails'][number] & {
       asset?: unknown
@@ -29,7 +29,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
     }>
   }
 
-  const projects = await sanityClient.withConfig({ useCdn: false }).fetch<RawProject[]>(`
+  const projects = await sanityClient.withConfig({ useCdn: false, perspective: 'published' }).fetch<RawProject[]>(`
     *[_type == "project"] | order(order asc) {
       _id,
       "id": _id,
@@ -52,11 +52,16 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
           alt,
           "focus": { "x": coalesce(hotspot.x, 0.5), "y": coalesce(hotspot.y, 0.5) },
         },
-        ...videos[_type == "uploadedVideo" && displayRole in ["thumbnail", "both"]]{
+        ...videos[_type == "uploadedVideo" && coalesce(displayRole, "both") in ["thumbnail", "both"] && defined(file.asset->url)]{
           "url": file.asset->url,
           "posterUrl": poster.asset->url,
           "alt": coalesce(caption, ""),
           "type": "video",
+        },
+        ...videos[_type == "linkedVideo" && defined(poster.asset->url)]{
+          "url": poster.asset->url,
+          "alt": coalesce(caption, ""),
+          "type": "videoPoster",
         },
       ],
       "photos": photos[coalesce(displayRole, "both") != "thumbnail"]{
@@ -85,7 +90,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
       roles,
       order,
     }
-  `)
+  `, {}, { cache: 'no-store' })
   return projects.map((project) => ({
     ...project,
     photos: project.photos ?? [],
@@ -103,7 +108,7 @@ export const fetchProjects = unstable_cache(async (): Promise<Project[]> => {
       }
     }),
   }))
-}, ['sanity-projects', projectId, dataset], { revalidate: 30, tags: ['sanity-projects'] })
+}
 
 export const fetchAbout = unstable_cache(async (): Promise<About | null> => {
   const raw = await sanityClient.withConfig({ useCdn: false }).fetch(`

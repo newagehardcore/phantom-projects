@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
-import MediaReel from './MediaReel'
+import MediaReel, { getProjectVideos } from './MediaReel'
 import MediaItem from './MediaItem'
 import ModalIcon from './ModalIcon'
 import type { WallProject, LinkedItem } from '@/lib/types'
@@ -30,6 +30,8 @@ interface ProjectModalProps {
 }
 
 export default function ProjectModal({ project, onClose, onFilter, onPrevious, onNext }: ProjectModalProps) {
+  const videos = getProjectVideos(project)
+  const featuredVideo = videos[0]
   const subtitle = project.subtitleType === 'None' && project.subtitleName
     ? `“${project.subtitleName}”`
     : project.subtitleName
@@ -134,9 +136,9 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
           <div
             className="project-modal-card"
           >
-            {(project.videos ?? [])[0] && (
+            {featuredVideo && (
               <div className="mobile-featured-video">
-                <MediaItem kind="video" data={project.videos[0]} />
+                <MediaItem key={featuredVideo.key} {...featuredVideo.item} />
               </div>
             )}
 
@@ -204,7 +206,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
 
             {/* Right: media */}
             <div className="modal-media">
-              <MediaReel key={project.id} project={project} />
+              <MediaReel key={project.id} project={project} videos={videos} />
             </div>
           </div>
         </div>

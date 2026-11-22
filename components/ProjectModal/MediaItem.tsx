@@ -10,9 +10,18 @@ import type { PhotoAsset, VideoItem, AudioItem } from '@/lib/types'
 export type MediaItemData =
   | { kind: 'photo'; data: PhotoAsset; index: number; onLightbox: (index: number) => void }
   | { kind: 'video'; data: VideoItem }
+  | { kind: 'externalVideo'; href: string; title: string; poster?: string }
   | { kind: 'audio'; data: AudioItem }
 
 export default function MediaItem(props: MediaItemData) {
+  if (props.kind === 'externalVideo') {
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <VideoPreview href={props.href} poster={props.poster} title={props.title} aspectRatio="16 / 9" />
+      </div>
+    )
+  }
+
   if (props.kind === 'photo') {
     const { data, index, onLightbox } = props
     return (
@@ -73,10 +82,15 @@ export default function MediaItem(props: MediaItemData) {
   return null
 }
 
-function VideoPreview({ poster, title, aspectRatio, onPlay }: { poster?: string; title: string; aspectRatio: string; onPlay: () => void }) {
+type VideoPreviewProps = { poster?: string; title: string; aspectRatio: string } & (
+  | { href: string; onPlay?: never }
+  | { href?: never; onPlay: () => void }
+)
+
+function VideoPreview({ poster, title, aspectRatio, href, onPlay }: VideoPreviewProps) {
   const [failedPoster, setFailedPoster] = useState<string>()
-  return (
-    <button type="button" className="video-preview" style={{ aspectRatio }} aria-label={`Play ${title}`} onClick={onPlay}>
+  const content = (
+    <>
       {poster && poster !== failedPoster && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -87,6 +101,18 @@ function VideoPreview({ poster, title, aspectRatio, onPlay }: { poster?: string;
         />
       )}
       <span className="video-preview-label">[ PLAY ]</span>
+    </>
+  )
+  if (href) {
+    return (
+      <a className="video-preview" style={{ aspectRatio, textDecoration: 'none' }} href={href} target="_blank" rel="noopener noreferrer" aria-label={`Watch ${title} on dis.art (opens in a new tab)`}>
+        {content}
+      </a>
+    )
+  }
+  return (
+    <button type="button" className="video-preview" style={{ aspectRatio }} aria-label={`Play ${title}`} onClick={onPlay}>
+      {content}
     </button>
   )
 }

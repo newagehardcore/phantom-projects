@@ -223,7 +223,7 @@ export const projectSchema = defineType({
               name: 'displayRole',
               title: 'Show in',
               type: 'string',
-              initialValue: 'project',
+              initialValue: 'both',
               options: {
                 list: [
                   { title: 'Wall thumbnail cycling only', value: 'thumbnail' },

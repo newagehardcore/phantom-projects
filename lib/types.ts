@@ -69,8 +69,8 @@ export interface Project {
   presentedAt?: LinkedItem[]
   watchOn?: LinkedItem[]
   thumbnail?: ThumbnailAsset
-  /** All media shown cycling on the wall tile (role: thumbnail or both). */
-  thumbnails: { url: string; alt: string; type?: 'image' | 'video'; posterUrl?: string; focus?: { x: number; y: number } }[]
+  /** Photos, playable videos, and linked-video posters shown on the wall tile. */
+  thumbnails: { url: string; alt: string; type?: 'image' | 'video' | 'videoPoster'; posterUrl?: string; focus?: { x: number; y: number } }[]
   photos: PhotoAsset[]
   videos: VideoItem[]
   audio: AudioItem[]
