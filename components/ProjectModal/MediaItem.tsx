@@ -146,6 +146,8 @@ function UploadedVideo({ src, posterUrl, title }: { src: string; posterUrl?: str
         playsInline
         aria-label={title}
         onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
         onLoadedMetadata={(event) => {
           const video = event.currentTarget
           if (video.videoWidth && video.videoHeight) setAspectRatio(`${video.videoWidth} / ${video.videoHeight}`)
