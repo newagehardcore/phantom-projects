@@ -2,36 +2,17 @@
 
 import { useRef, useState } from 'react'
 import { PatchEvent, set, useClient, type ArrayOfObjectsInputProps } from 'sanity'
+import { createImageUrlBuilder } from '@sanity/image-url'
+import { MAX_THUMBNAIL_ZOOM, thumbnailImageUrl, WALL_THUMBNAIL_WIDTH, WALL_THUMBNAIL_HEIGHT, type ThumbnailImage } from '../../lib/thumbnailImage'
 
-type Photo = {
+type Photo = ThumbnailImage & {
   _key: string
   _type?: string
-  asset?: { _ref?: string }
   alt?: string
   displayRole?: string
-  hotspot?: { x?: number; y?: number; width?: number; height?: number }
-  crop?: { top?: number; bottom?: number; left?: number; right?: number }
 }
 
-function previewUrl(photo: Photo) {
-  const ref = photo.asset?._ref
-  if (!ref) return ''
-  const [, id, dimensions, format] = ref.match(/^image-([^-]+)-([^-]+)-(.+)$/) ?? []
-  if (!id) return ''
-  const params = new URLSearchParams({ w: '700', h: '500', fit: 'crop', auto: 'format' })
-  const crop = photo.crop
-  if (crop) {
-    params.set('rect', [
-      Math.round((crop.left ?? 0) * Number(dimensions.split('x')[0])),
-      Math.round((crop.top ?? 0) * Number(dimensions.split('x')[1])),
-      Math.round((1 - (crop.left ?? 0) - (crop.right ?? 0)) * Number(dimensions.split('x')[0])),
-      Math.round((1 - (crop.top ?? 0) - (crop.bottom ?? 0)) * Number(dimensions.split('x')[1])),
-    ].join(','))
-  }
-  const hot = photo.hotspot
-  if (hot) params.set('fp-x', String(hot.x ?? 0.5)), params.set('fp-y', String(hot.y ?? 0.5)), params.set('crop', 'focalpoint')
-  return `https://cdn.sanity.io/images/hc7jjv49/production/${id}-${dimensions}.${format}?${params}`
-}
+const clampPoint = (value: number) => Math.max(0, Math.min(1, value))
 
 function sourceDimensions(photo: Photo) {
   const match = photo.asset?._ref?.match(/^image-[^-]+-(\d+)x(\d+)-/)
@@ -40,6 +21,7 @@ function sourceDimensions(photo: Photo) {
 
 export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>) {
   const client = useClient({ apiVersion: '2024-01-01' })
+  const imageBuilder = createImageUrlBuilder(client)
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState('')
@@ -82,8 +64,8 @@ export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>
     const photo = photos.find((item) => item._key === key)
     if (!photo) return
     props.onChange(PatchEvent.from(set({
-      x,
-      y,
+      x: clampPoint(x),
+      y: clampPoint(y),
       width: photo.hotspot?.width ?? 1,
       height: photo.hotspot?.height ?? 1,
     }, [{ _key: key }, 'hotspot'])))
@@ -106,7 +88,7 @@ export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${thumbnailSize}px, 1fr))`, gap: thumbnailSize < 100 ? 7 : 12 }}>
         {photos.map((photo, index) => {
-          const src = previewUrl(photo)
+          const src = thumbnailImageUrl(imageBuilder, photo)
           return (
             <div
               key={photo._key}
@@ -156,29 +138,60 @@ export default function PhotoGalleryInput(props: ArrayOfObjectsInputProps<Photo>
         {uploading && <div role="status" style={{ marginTop: 10, fontSize: 12 }}>{uploading}</div>}
         {uploadError && <div role="alert" style={{ marginTop: 10, color: '#e88', fontSize: 12 }}>{uploadError}</div>}
       </section>
-      {cropPhoto && (
+      {cropPhoto?.asset?._ref && (
         <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCropKey(null) }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 24, background: 'rgba(0,0,0,.72)' }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="thumbnail-crop-title" style={{ width: 'min(720px, 100%)', padding: 20, borderRadius: 10, background: '#1b1b1b', color: '#fff', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="thumbnail-crop-title" style={{ width: 'min(720px, 100%)', maxHeight: 'calc(100dvh - 48px)', overflowY: 'auto', padding: 20, borderRadius: 10, background: '#1b1b1b', color: '#fff', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
                 <div id="thumbnail-crop-title" style={{ fontSize: 16, fontWeight: 600 }}>Edit image</div>
-                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>Click the image to choose its thumbnail focal point. The original image stays unchanged.</div>
+                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>Click the source image or use the arrow keys to position the focal point.</div>
               </div>
               <button type="button" aria-label="Close crop editor" onClick={() => setCropKey(null)} style={{ ...actionStyle, fontSize: 22, padding: '2px 9px' }}>×</button>
             </div>
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Set thumbnail focal point"
-              onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect()
-                saveFocalPoint(cropPhoto._key, Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)))
-              }}
-              style={{ position: 'relative', overflow: 'hidden', aspectRatio: '4 / 3', background: '#000', cursor: 'crosshair' }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl(cropPhoto)} alt={cropPhoto.alt ?? ''} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover', objectPosition: `${(cropPhoto.hotspot?.x ?? 0.5) * 100}% ${(cropPhoto.hotspot?.y ?? 0.5) * 100}%` }} />
-              <span aria-hidden="true" style={{ position: 'absolute', left: `${(cropPhoto.hotspot?.x ?? 0.5) * 100}%`, top: `${(cropPhoto.hotspot?.y ?? 0.5) * 100}%`, width: 18, height: 18, border: '2px solid white', borderRadius: '50%', boxShadow: '0 0 0 1px #000', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
+              <div>
+                <div style={{ marginBottom: 6, fontSize: 12 }}>Source image</div>
+                <button
+                  type="button"
+                  aria-label="Set thumbnail focal point"
+                  onClick={(event) => {
+                    if (event.detail === 0) return
+                    const rect = event.currentTarget.getBoundingClientRect()
+                    saveFocalPoint(cropPhoto._key, (event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height)
+                  }}
+                  onKeyDown={(event) => {
+                    const directions: Record<string, [number, number]> = {
+                      ArrowLeft: [-0.02, 0], ArrowRight: [0.02, 0], ArrowUp: [0, -0.02], ArrowDown: [0, 0.02],
+                    }
+                    const direction = directions[event.key]
+                    if (!direction) return
+                    event.preventDefault()
+                    saveFocalPoint(cropPhoto._key, (cropPhoto.hotspot?.x ?? 0.5) + direction[0], (cropPhoto.hotspot?.y ?? 0.5) + direction[1])
+                  }}
+                  style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', verticalAlign: 'top', border: 0, padding: 0, background: '#000', cursor: 'crosshair' }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageBuilder.image(cropPhoto.asset._ref).width(720).fit('max').url()} alt={cropPhoto.alt ?? ''} style={{ display: 'block', maxWidth: '100%', maxHeight: 260 }} />
+                  <span aria-hidden="true" style={{ position: 'absolute', left: `${(cropPhoto.hotspot?.x ?? 0.5) * 100}%`, top: `${(cropPhoto.hotspot?.y ?? 0.5) * 100}%`, width: 18, height: 18, border: '2px solid white', borderRadius: '50%', boxShadow: '0 0 0 1px #000', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />
+                </button>
+              </div>
+              <div>
+                <div style={{ marginBottom: 6, fontSize: 12 }}>Wall thumbnail</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumbnailImageUrl(imageBuilder, cropPhoto)} alt={cropPhoto.alt ?? ''} style={{ display: 'block', width: '100%', aspectRatio: `${WALL_THUMBNAIL_WIDTH} / ${WALL_THUMBNAIL_HEIGHT}`, objectFit: 'cover' }} />
+                <label style={{ display: 'grid', gap: 6, marginTop: 12, fontSize: 13 }}>
+                  Thumbnail zoom ({Math.round((cropPhoto.thumbnailZoom ?? 1) * 100)}%)
+                  <input
+                    type="range"
+                    min={100}
+                    max={MAX_THUMBNAIL_ZOOM * 100}
+                    step={5}
+                    value={Math.round((cropPhoto.thumbnailZoom ?? 1) * 100)}
+                    onChange={(event) => props.onChange(PatchEvent.from(set(event.currentTarget.valueAsNumber / 100, [{ _key: cropPhoto._key }, 'thumbnailZoom'])))}
+                    style={{ width: '100%' }}
+                  />
+                </label>
+              </div>
             </div>
             <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
               Original resolution: {sourceDimensions(cropPhoto) ?? 'Unavailable'}

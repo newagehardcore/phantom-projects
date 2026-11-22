@@ -2,6 +2,7 @@ import { defineType, defineField } from 'sanity'
 import PhotoGalleryInput from '../components/PhotoGalleryInput'
 import { AudioDropInput, VideoDropInput } from '../components/MediaDropInput'
 import MonthYearInput from '../components/MonthYearInput'
+import { MAX_THUMBNAIL_ZOOM } from '../../lib/thumbnailImage'
 
 export const projectSchema = defineType({
   name: 'project',
@@ -187,6 +188,13 @@ export const projectSchema = defineType({
           initialValue: { hotspot: { x: 0.5, y: 0.25, width: 1, height: 1 }, displayRole: 'both' },
           fields: [
             defineField({ name: 'alt', title: 'Alt text', type: 'string' }),
+            defineField({
+              name: 'thumbnailZoom',
+              title: 'Thumbnail zoom',
+              type: 'number',
+              description: 'Magnification for the wall thumbnail, centered on the saved focal point.',
+              validation: (Rule) => Rule.min(1).max(MAX_THUMBNAIL_ZOOM),
+            }),
             defineField({
               name: 'displayRole',
               title: 'Show in',

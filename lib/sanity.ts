@@ -1,7 +1,8 @@
 import { createClient } from '@sanity/client'
-import imageUrlBuilder from '@sanity/image-url'
+import { createImageUrlBuilder } from '@sanity/image-url'
 import { unstable_cache } from 'next/cache'
 import type { Project, About } from './types'
+import { thumbnailImageUrl, type ThumbnailImage } from './thumbnailImage'
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!
 const dataset   = process.env.NEXT_PUBLIC_SANITY_DATASET!
@@ -14,7 +15,7 @@ export const sanityClient = createClient({
   timeout: 15_000,
 })
 
-const builder = imageUrlBuilder(sanityClient)
+const builder = createImageUrlBuilder(sanityClient)
 
 export function urlFor(source: unknown) {
   return builder.image(source as Parameters<typeof builder.image>[0])
@@ -22,11 +23,7 @@ export function urlFor(source: unknown) {
 
 export async function fetchProjects(): Promise<Project[]> {
   type RawProject = Omit<Project, 'thumbnails'> & {
-    thumbnails: Array<Project['thumbnails'][number] & {
-      asset?: unknown
-      crop?: unknown
-      hotspot?: unknown
-    }>
+    thumbnails: Array<Project['thumbnails'][number] & ThumbnailImage>
   }
 
   const projects = await sanityClient.withConfig({ perspective: 'published' }).fetch<RawProject[]>(`
@@ -49,6 +46,7 @@ export async function fetchProjects(): Promise<Project[]> {
           asset,
           crop,
           hotspot,
+          thumbnailZoom,
           alt,
           "focus": { "x": coalesce(hotspot.x, 0.5), "y": coalesce(hotspot.y, 0.5) },
         },
@@ -99,12 +97,9 @@ export async function fetchProjects(): Promise<Project[]> {
     links: project.links ?? [],
     thumbnails: (project.thumbnails ?? []).map((thumb) => {
       if (thumb.type === 'video') return thumb
-      const source = thumb
       return {
         ...thumb,
-        url: source.asset
-          ? urlFor(source as Parameters<typeof urlFor>[0]).width(900).height(640).fit('crop').url()
-          : thumb.url,
+        url: thumbnailImageUrl(builder, thumb) || thumb.url,
       }
     }),
   }))

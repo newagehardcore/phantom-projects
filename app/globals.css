@@ -244,11 +244,11 @@ h1, h2, h3, h4 {
 .modal-media-reel > div { margin-bottom: 24px !important; }
 .modal-media-reel > div:last-child { margin-bottom: 0 !important; }
 .modal-media-reel > .audio-player:has(+ .audio-player) { margin-bottom: 6px !important; }
-.audio-player { display: flex; align-items: center; gap: 6px; color: #fff; }
-.audio-player-toggle { display: grid; place-items: center; flex: 0 0 32px; min-height: 32px; cursor: pointer; }
+.audio-player { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 4px 6px; color: #fff; }
+.audio-player-toggle { display: grid; place-items: center; min-height: 32px; cursor: pointer; }
 .audio-play-icon { width: 11px; height: 12px; background: #fff; clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .audio-pause-icon { width: 9px; height: 12px; border-inline: 3px solid #fff; }
-.audio-player-title { max-width: 52%; font-size: 16px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.audio-player-title { grid-column: 1 / -1; font-size: 16px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
 .audio-player-progress { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
 .audio-player-progress input {
   appearance: none;
