@@ -42,14 +42,19 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
   const ref      = useRef<HTMLDivElement>(null)
   const imgRef   = useRef<HTMLImageElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const mediaAnimation = useRef<Animation | null>(null)
+  const isInView = useRef(false)
 
   // Keep CMS order within each type and start on video media whenever available.
   const thumbnails = useMemo(() => {
     const media = project.thumbnails?.length
       ? project.thumbnails
       : project.thumbnail ? [project.thumbnail] : []
-    return media.filter(thumb => thumb.url).sort((a, b) => thumbnailPriority(b) - thumbnailPriority(a))
+    const seen = new Set<string>()
+    return media.filter(thumb => {
+      if (!thumb.url || seen.has(thumb.url)) return false
+      seen.add(thumb.url)
+      return true
+    }).sort((a, b) => thumbnailPriority(b) - thumbnailPriority(a))
   }, [project.thumbnails, project.thumbnail])
   const instanceSeed = useMemo(() => hashInstanceId(project.id), [project.id])
   const startingThumbs = thumbnails.filter(thumb => thumbnailPriority(thumb) === thumbnailPriority(thumbnails[0]))
@@ -74,6 +79,28 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     return () => onMount(project.id, null)
   }, [project.id, onMount])
 
+  useEffect(() => {
+    const video = videoRef.current
+    const tile = ref.current
+    if (!video || !tile || !thumbnails.some(thumb => thumbnailPriority(thumb) === 2)) return
+    const observer = new IntersectionObserver(([entry]) => {
+      isInView.current = entry.isIntersecting
+      if (!entry.isIntersecting) {
+        video.pause()
+      } else if (video.hasAttribute('src') && video.style.display !== 'none' && video.paused) {
+        void video.play().catch(() => {})
+      }
+    })
+    observer.observe(tile)
+    return () => {
+      observer.disconnect()
+      isInView.current = false
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
+  }, [thumbnails])
+
   // ── Thumbnail cycling and hover flash ─────────────────────────────────────
   useEffect(() => {
     const imgs = thumbnails
@@ -81,33 +108,32 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     const videoElement = videoRef.current
     const imageIndexes = imgs.flatMap((thumb, i) => ('type' in thumb && thumb.type === 'video') ? [] : [i])
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let active = true
+    let animation: Animation | undefined
     let stopTimer = () => {}
 
-    const stopAnimation = () => {
-      mediaAnimation.current?.cancel()
-      mediaAnimation.current = null
-    }
-
     const showThumb = (i: number) => {
-      if (!imgs.length) return
-      stopAnimation()
-      currentThumbIndex.current = (i + imgs.length) % imgs.length
-      const thumb = imgs[currentThumbIndex.current]
+      const thumb = imgs[i]
+      if (!thumb) return
       if ('type' in thumb && thumb.type === 'video') {
         if (imageElement) imageElement.style.display = 'none'
         if (videoElement) {
           const v = videoElement
           v.style.display = 'block'
-          v.poster = thumb.posterUrl ?? ''
-          v.src = thumb.url
+          if (v.getAttribute('src') !== thumb.url) {
+            v.poster = thumb.posterUrl ?? ''
+            v.src = thumb.url
+          }
           v.muted = true
-          void v.play().catch(() => {})
+          if (isInView.current && v.paused) void v.play().catch(() => {})
         }
       } else {
         if (videoElement) {
-          videoElement.pause()
-          videoElement.removeAttribute('src')
-          videoElement.load()
+          if (videoElement.hasAttribute('src')) {
+            videoElement.pause()
+            videoElement.removeAttribute('src')
+            videoElement.load()
+          }
           videoElement.style.display = 'none'
         }
         if (imageElement) {
@@ -116,42 +142,51 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
           // Image URLs are already cropped with Sanity's saved hotspot.
           image.style.objectPosition = '50% 50%'
           image.alt = thumb.alt
-          image.onload = null
-          image.src = thumb.url
+          if (image.getAttribute('src') !== thumb.url) image.src = thumb.url
         }
       }
     }
 
-    if (isHovered) {
-      if (imageIndexes.length > 1) {
-        const order = [...imageIndexes].sort(() => Math.random() - 0.5)
-        showThumb(order[0])
-        if (!reducedMotion) {
-          let index = 0
-          const timer = window.setInterval(() => {
-            index = (index + 1) % order.length
-            showThumb(order[index])
-          }, 100)
-          stopTimer = () => window.clearInterval(timer)
-        }
-      } else if (imageIndexes.length === 1) {
-        showThumb(imageIndexes[0])
-        const image = imageElement
-        if (image && !reducedMotion) {
-          mediaAnimation.current = image.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 100, iterations: Infinity })
-        }
-      } else {
-        showThumb(currentThumbIndex.current)
+    const flash = (element: HTMLElement | null) => {
+      animation?.cancel()
+      animation = element?.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 100, iterations: Infinity })
+    }
+
+    if (isHovered && !reducedMotion) {
+      // Keep showing the current media while the hover images are loading.
+      const thumb = imgs[currentThumbIndex.current]
+      flash(thumb && 'type' in thumb && thumb.type === 'video' ? videoElement : imageElement)
+      const ready: number[] = []
+      for (const i of imageIndexes) {
+        const image = new Image()
+        image.src = imgs[i].url
+        void image.decode().then(() => {
+          if (!active) return
+          ready.push(i)
+          if (ready.length === 1) {
+            showThumb(i)
+            flash(imageElement)
+          } else if (ready.length === 2) {
+            animation?.cancel()
+            let index = 0
+            const timer = window.setInterval(() => {
+              index = (index + 1) % ready.length
+              showThumb(ready[index])
+            }, 100)
+            stopTimer = () => window.clearInterval(timer)
+          }
+        }).catch(() => {})
       }
-    } else {
-      showThumb(Math.min(currentThumbIndex.current, imgs.length - 1))
+    } else if (!isHovered) {
+      currentThumbIndex.current = Math.min(currentThumbIndex.current, Math.max(0, imgs.length - 1))
+      showThumb(currentThumbIndex.current)
       if (imgs.length > 1) {
         const baseMs = 10000 + (instanceSeed * 2971 + 13) % 8000
         const schedule = () => {
           const nextMs = -baseMs * Math.log(Math.random() + 1e-10)
           const timer = window.setTimeout(() => {
-            const nextIndex = (currentThumbIndex.current + cycleStep + imgs.length) % imgs.length
-            showThumb(nextIndex)
+            currentThumbIndex.current = (currentThumbIndex.current + cycleStep + imgs.length) % imgs.length
+            showThumb(currentThumbIndex.current)
             schedule()
           }, nextMs)
           stopTimer = () => window.clearTimeout(timer)
@@ -161,14 +196,9 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     }
 
     return () => {
+      active = false
       stopTimer()
-      stopAnimation()
-      if (imageElement) imageElement.onload = null
-      if (videoElement?.hasAttribute('src')) {
-        videoElement.pause()
-        videoElement.removeAttribute('src')
-        videoElement.load()
-      }
+      animation?.cancel()
     }
   }, [project.id, thumbnails, isHovered, instanceSeed, cycleStep])
 
@@ -226,7 +256,7 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
           ref={setVideoRef}
           src={firstIsVideo ? firstThumb.url : undefined}
           poster={firstIsVideo ? firstThumb.posterUrl : undefined}
-          preload={firstIsVideo ? 'auto' : 'none'}
+          preload="none"
           loop
           playsInline
           style={{ ...mediaStyle, display: firstIsVideo ? 'block' : 'none' }}

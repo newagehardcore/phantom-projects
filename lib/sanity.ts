@@ -29,7 +29,7 @@ export async function fetchProjects(): Promise<Project[]> {
     }>
   }
 
-  const projects = await sanityClient.withConfig({ useCdn: false, perspective: 'published' }).fetch<RawProject[]>(`
+  const projects = await sanityClient.withConfig({ perspective: 'published' }).fetch<RawProject[]>(`
     *[_type == "project"] | order(order asc) {
       _id,
       "id": _id,
