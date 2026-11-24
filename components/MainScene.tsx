@@ -43,7 +43,7 @@ export default function MainScene({ projects }: MainSceneProps) {
   const [driftResetKey, setDriftResetKey] = useState(0)
   const [initialThumbnailsSettled, setInitialThumbnailsSettled] = useState(false)
   const handleInitialThumbnailsSettled = useCallback(() => setInitialThumbnailsSettled(true), [])
-  useProjectImagePreload(projects, initialThumbnailsSettled)
+  useProjectImagePreload(projects, initialThumbnailsSettled, searchParams.has('project'))
 
   // Re-layout whenever filter or search changes — results always tile to fill the wall
   const wallProjects = useMemo(() => {
@@ -154,6 +154,7 @@ export default function MainScene({ projects }: MainSceneProps) {
         onTileClick={openProject}
         onTileHover={setHoveredProject}
         onInitialThumbnailsSettled={handleInitialThumbnailsSettled}
+        warmHoverFrames={initialThumbnailsSettled}
       />
       <HUD
         activeFilter={activeFilter}

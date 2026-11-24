@@ -6,6 +6,7 @@ import type { WallProject } from '@/lib/types'
 interface WallTileProps {
   project: WallProject
   isHovered: boolean
+  warmHoverFrames: boolean
   onMount: (instanceId: string, el: HTMLDivElement | null) => void
   onKeyActivate: (slug: string) => void
 }
@@ -23,6 +24,28 @@ const mediaStyle: React.CSSProperties = {
 // Each tile bleeds past its grid cell so sphere-projected rotations never show gaps.
 // The z-index in Wall.tsx (center tiles on top) keeps the overlap invisible.
 const BLEED = 10
+const hoverFrames = new Map<string, { pending: HTMLImageElement | null; decoded: Promise<void> }>()
+
+function loadHoverFrame(url: string, priority: 'auto' | 'high') {
+  const cached = hoverFrames.get(url)
+  if (cached) {
+    if (cached.pending && priority === 'high') cached.pending.fetchPriority = priority
+    return cached.decoded
+  }
+
+  const image = new Image()
+  image.fetchPriority = priority
+  image.src = url
+  const frame = {
+    pending: image as HTMLImageElement | null,
+    decoded: image.decode().then(() => { frame.pending = null }, error => {
+      hoverFrames.delete(url)
+      throw error
+    }),
+  }
+  hoverFrames.set(url, frame)
+  return frame.decoded
+}
 
 function thumbnailPriority(thumb: WallProject['thumbnails'][number]) {
   if (thumb.type === 'video') return 2
@@ -38,7 +61,7 @@ function hashInstanceId(value: string) {
   return hash >>> 0
 }
 
-export default function WallTile({ project, isHovered, onMount, onKeyActivate }: WallTileProps) {
+export default function WallTile({ project, isHovered, warmHoverFrames, onMount, onKeyActivate }: WallTileProps) {
   const ref      = useRef<HTMLDivElement>(null)
   const imgRef   = useRef<HTMLImageElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -80,6 +103,22 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
   }, [project.id, onMount])
 
   useEffect(() => {
+    const tile = ref.current
+    if (!warmHoverFrames || !tile || thumbnails.length < 2 || !window.matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return
+      observer.disconnect()
+      const cover = imgRef.current
+      for (const thumb of thumbnails) {
+        if (thumbnailPriority(thumb) === 2 || thumb.url === cover?.getAttribute('src')) continue
+        void loadHoverFrame(thumb.url, 'auto').catch(() => {})
+      }
+    })
+    observer.observe(tile)
+    return () => observer.disconnect()
+  }, [thumbnails, warmHoverFrames])
+
+  useEffect(() => {
     const video = videoRef.current
     const tile = ref.current
     if (!video || !tile || !thumbnails.some(thumb => thumbnailPriority(thumb) === 2)) return
@@ -106,10 +145,8 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     const imgs = thumbnails
     const imageElement = imgRef.current
     const videoElement = videoRef.current
-    const imageIndexes = imgs.flatMap((thumb, i) => ('type' in thumb && thumb.type === 'video') ? [] : [i])
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let active = true
-    let animation: Animation | undefined
     let stopTimer = () => {}
 
     const showThumb = (i: number) => {
@@ -147,34 +184,38 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
       }
     }
 
-    const flash = (element: HTMLElement | null) => {
-      animation?.cancel()
-      animation = element?.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 100, iterations: Infinity })
-    }
-
     if (isHovered && !reducedMotion) {
-      // Keep showing the current media while the hover images are loading.
-      const thumb = imgs[currentThumbIndex.current]
-      flash(thumb && 'type' in thumb && thumb.type === 'video' ? videoElement : imageElement)
-      const ready: number[] = []
+      const visibleImage = imageElement?.complete && imageElement.naturalWidth && imageElement.style.display !== 'none'
+        ? imageElement.getAttribute('src')
+        : null
+      const current = imgs.findIndex(thumb => thumb.url === visibleImage)
+      const ready = current < 0 ? [] : [current]
+      const imageIndexes = imgs.flatMap((thumb, i) => {
+        if (i === current || thumbnailPriority(thumb) === 2) return []
+        if (hoverFrames.get(thumb.url)?.pending !== null) return [i]
+        ready.push(i)
+        return []
+      })
+
+      function startCycle() {
+        let index = 1
+        showThumb(ready[index])
+        const timer = window.setInterval(() => {
+          index = (index + 1) % ready.length
+          showThumb(ready[index])
+        }, 100)
+        stopTimer = () => window.clearInterval(timer)
+      }
+
+      if (ready.length > 1) startCycle()
+      else if (ready.length === 1 && current < 0) showThumb(ready[0])
+
       for (const i of imageIndexes) {
-        const image = new Image()
-        image.src = imgs[i].url
-        void image.decode().then(() => {
+        void loadHoverFrame(imgs[i].url, 'high').then(() => {
           if (!active) return
           ready.push(i)
-          if (ready.length === 1) {
-            showThumb(i)
-            flash(imageElement)
-          } else if (ready.length === 2) {
-            animation?.cancel()
-            let index = 0
-            const timer = window.setInterval(() => {
-              index = (index + 1) % ready.length
-              showThumb(ready[index])
-            }, 100)
-            stopTimer = () => window.clearInterval(timer)
-          }
+          if (ready.length === 1) showThumb(i)
+          else if (ready.length === 2) startCycle()
         }).catch(() => {})
       }
     } else if (!isHovered) {
@@ -198,7 +239,6 @@ export default function WallTile({ project, isHovered, onMount, onKeyActivate }:
     return () => {
       active = false
       stopTimer()
-      animation?.cancel()
     }
   }, [project.id, thumbnails, isHovered, instanceSeed, cycleStep])
 

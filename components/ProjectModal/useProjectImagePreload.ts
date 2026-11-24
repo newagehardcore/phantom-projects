@@ -1,10 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Project } from '@/lib/types'
 import { getProjectVideos } from './MediaReel'
 
 const CONCURRENT_IMAGES = 2
 
-export function useProjectImagePreload(projects: Project[], thumbnailsSettled: boolean) {
+export function useProjectImagePreload(projects: Project[], thumbnailsSettled: boolean, paused: boolean) {
+  const queuePaused = useRef(paused)
+  const resume = useRef<(() => void) | undefined>(undefined)
+
+  useEffect(() => {
+    queuePaused.current = paused
+    if (!paused) resume.current?.()
+  }, [paused])
+
   useEffect(() => {
     if (!thumbnailsSettled || !projects.length) return
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
@@ -29,7 +37,7 @@ export function useProjectImagePreload(projects: Project[], thumbnailsSettled: b
     let cancelScheduled: (() => void) | undefined
 
     const schedule = () => {
-      if (disposed || cancelScheduled) return
+      if (disposed || queuePaused.current || cancelScheduled) return
       if (typeof window.requestIdleCallback === 'function') {
         const id = window.requestIdleCallback(pump, { timeout: 1000 })
         cancelScheduled = () => window.cancelIdleCallback(id)
@@ -41,7 +49,7 @@ export function useProjectImagePreload(projects: Project[], thumbnailsSettled: b
 
     function pump() {
       cancelScheduled = undefined
-      while (!disposed && inFlight.size < CONCURRENT_IMAGES) {
+      while (!disposed && !queuePaused.current && inFlight.size < CONCURRENT_IMAGES) {
         const next = queue.next()
         if (next.done) return
 
@@ -58,12 +66,17 @@ export function useProjectImagePreload(projects: Project[], thumbnailsSettled: b
       }
     }
 
-    if (document.readyState === 'complete') schedule()
-    else window.addEventListener('load', schedule, { once: true })
+    const start = () => {
+      resume.current = schedule
+      schedule()
+    }
+    if (document.readyState === 'complete') start()
+    else window.addEventListener('load', start, { once: true })
 
     return () => {
       disposed = true
-      window.removeEventListener('load', schedule)
+      window.removeEventListener('load', start)
+      resume.current = undefined
       cancelScheduled?.()
       for (const image of inFlight) image.onload = image.onerror = null
       inFlight.clear()

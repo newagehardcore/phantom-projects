@@ -14,6 +14,7 @@ interface WallProps {
   onTileClick: (slug: string) => void
   onTileHover: (project: WallProject | null) => void
   onInitialThumbnailsSettled: () => void
+  warmHoverFrames: boolean
 }
 
 const TAP_MAX_DIST = 8
@@ -33,7 +34,7 @@ function wallLayoutKey(projects: WallProject[]) {
 }
 
 export default function Wall({
-  projects, isModalOpen, driftResetKey, onTileClick, onTileHover, onInitialThumbnailsSettled,
+  projects, isModalOpen, driftResetKey, onTileClick, onTileHover, onInitialThumbnailsSettled, warmHoverFrames,
 }: WallProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
@@ -585,6 +586,7 @@ export default function Wall({
               key={p.id}
               project={p}
               isHovered={hoveredTileId === p.id}
+              warmHoverFrames={warmHoverFrames && !isModalOpen}
               onMount={registerTile}
               onKeyActivate={onKeyActivate}
             />

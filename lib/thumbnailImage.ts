@@ -17,7 +17,7 @@ export function thumbnailImageUrl(builder: ImageUrlBuilder, image: ThumbnailImag
   if (!ref || !dimensions) return ''
 
   const url = builder.image(image as SanityImageSource)
-    .width(WALL_THUMBNAIL_WIDTH).height(WALL_THUMBNAIL_HEIGHT).fit('crop')
+    .width(WALL_THUMBNAIL_WIDTH).height(WALL_THUMBNAIL_HEIGHT).fit('crop').auto('format')
   const zoom = Math.min(MAX_THUMBNAIL_ZOOM, image.thumbnailZoom ?? 1)
   // At 1×, retain the exact crop Sanity calculates from the saved hotspot.
   if (!Number.isFinite(zoom) || zoom <= 1) return url.url()
