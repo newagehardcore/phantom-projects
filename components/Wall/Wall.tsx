@@ -4,7 +4,7 @@ import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react
 import gsap from 'gsap'
 import WallTile from './WallTile'
 import Vignette from './Vignette'
-import { projectTile, initialCam, worldSize, H_COPIES, V_COPIES } from '@/lib/wallUtils'
+import { projectTile, initialCam, visibleWallTiles } from '@/lib/wallUtils'
 import type { WallProject } from '@/lib/types'
 
 interface WallProps {
@@ -39,8 +39,6 @@ export default function Wall({
 
   const cam        = useRef({ x: 0, y: 0, z: DESKTOP_ZOOM })
   const vel        = useRef({ x: 0, y: 0 })
-  const worldBound = useRef({ w: 0, h: 0 })
-  const singleSize = useRef({ w: 0, h: 0 })
   const firstMount = useRef(true)
 
   const isModalOpenRef = useRef(false)
@@ -64,6 +62,7 @@ export default function Wall({
   // Keep layout data for the full repeated wall, but mount DOM only near the camera.
   const [mountedProjects, setMountedProjects] = useState<WallProject[]>([])
   const mountedProjectIds = useRef(new Set<string>())
+  const mountedSource = useRef<WallProject[]>(null)
   const lastCullCam = useRef({ x: Number.NaN, y: Number.NaN })
   const displayedProjectsRef = useRef(projects)
   const pendingProjects  = useRef<WallProject[]>(projects)
@@ -108,20 +107,15 @@ export default function Wall({
     const minY = cam.current.y - halfH
     const maxY = cam.current.y + halfH
 
-    const visible = source.filter((project) =>
-      project.x + project.w >= minX &&
-      project.x <= maxX &&
-      project.y + project.h >= minY &&
-      project.y <= maxY
-    )
-    return visible
+    return visibleWallTiles(source, { minX, maxX, minY, maxY })
   }, [])
 
   const syncMountedProjects = useCallback((source: WallProject[]) => {
     const next = selectVisibleProjects(source)
     const nextIds = new Set(next.map((project) => project.id))
     const currentIds = mountedProjectIds.current
-    if (nextIds.size === currentIds.size && [...nextIds].every((id) => currentIds.has(id))) return
+    if (source === mountedSource.current && nextIds.size === currentIds.size && [...nextIds].every((id) => currentIds.has(id))) return
+    mountedSource.current = source
     mountedProjectIds.current = nextIds
     setMountedProjects(next)
   }, [selectVisibleProjects])
@@ -142,32 +136,15 @@ export default function Wall({
     return () => window.removeEventListener('resize', onResize)
   }, [syncMountedProjectsForCamera])
 
-  // Always reveal the stage after the first client commit. The GSAP intro is
-  // optional polish; a failed animation setup must never leave a black screen.
   useEffect(() => {
-    setReady(true)
-    chooseDrift()
     return () => {
       if (pendingMobileOpen.current !== null) window.clearTimeout(pendingMobileOpen.current)
     }
-  }, [chooseDrift])
+  }, [])
 
   useEffect(() => {
     chooseDrift()
   }, [driftResetKey, chooseDrift])
-
-  function wrapCam() {
-    const { w: sw, h: sh } = singleSize.current
-    if (!sw || !sh) return
-    // Wrap by 2× the single-copy size — the layout repeats every 2 copies
-    // (A,B,A,B,A pattern), so a 2× jump always lands on an identical copy.
-    const pw = 2 * sw
-    const ph = 2 * sh
-    if (cam.current.x < sw)       cam.current.x += pw
-    if (cam.current.x > 4 * sw)   cam.current.x -= pw
-    if (cam.current.y < sh)       cam.current.y += ph
-    if (cam.current.y > 4 * sh)   cam.current.y -= ph
-  }
 
   function applyWorld() {
     if (!worldRef.current) return
@@ -190,8 +167,6 @@ export default function Wall({
       const c = initialCam(projects)
       cam.current.x = c.x
       cam.current.y = c.y
-      worldBound.current = worldSize(projects)
-      singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
       syncMountedProjectsForCamera(projects)
       applyWorld()
       setReady(true)
@@ -227,8 +202,6 @@ export default function Wall({
     const c = initialCam(displayedProjects)
     cam.current.x = c.x
     cam.current.y = c.y
-    worldBound.current = worldSize(displayedProjects)
-    singleSize.current = { w: worldBound.current.w / H_COPIES, h: worldBound.current.h / V_COPIES }
     syncMountedProjectsForCamera(displayedProjects)
     applyWorld()
 
@@ -280,7 +253,7 @@ export default function Wall({
     const allowDecorativeMotion = !prefersReduced && !isTouchDevice
 
     // Per-tile animated state — lives in closure so it persists across frames
-    const hoverScale    = new Map<string, number>()  // current animated scale (1 = rest)
+    const hoverScale    = new WeakMap<HTMLElement, number>() // current animated scale (1 = rest)
 
     // Cursor proximity radius for hover scale (330 screen-px)
     const SPOT_R   = 330
@@ -297,7 +270,6 @@ export default function Wall({
       if (!dragActive.current && now >= driftResumeAt.current) {
         cam.current.x += drift.current.x * (dt / 16.67)
         cam.current.y += drift.current.y * (dt / 16.67)
-        wrapCam()
         applyWorld()
       }
 
@@ -308,7 +280,6 @@ export default function Wall({
         const decay = Math.pow(0.935, dt / 16.67)
         vel.current.x *= decay
         vel.current.y *= decay
-        wrapCam()
         applyWorld()
       }
 
@@ -391,10 +362,10 @@ export default function Wall({
           : 0
 
         // ── Hover scale — smooth toward target (target=1 when modal open) ──
-        const curHS  = hoverScale.get(id) ?? 1
+        const curHS  = hoverScale.get(el) ?? 1
         const tarHS  = 1 + weight * HOVER_BOOST
         const nextHS = curHS + (tarHS - curHS) * fastLerp
-        hoverScale.set(id, nextHS)
+        hoverScale.set(el, nextHS)
 
         // ── Inner div: hover zoom ──────────────────────
         const inner = el.firstElementChild as HTMLElement | null
@@ -478,7 +449,6 @@ export default function Wall({
     const z  = cam.current.z
     cam.current.x -= dx / z
     cam.current.y -= dy / z
-    wrapCam()
     applyWorld()
     syncMountedProjectsForCamera(displayedProjectsRef.current)
     if (dt > 0) {
@@ -508,7 +478,7 @@ export default function Wall({
       if (slug && tileId && isTouch) {
         if (pendingMobileOpen.current !== null) window.clearTimeout(pendingMobileOpen.current)
         setHoveredTileId(tileId)
-        onTileHover(displayedProjectsRef.current.find(project => project.id === tileId) ?? null)
+        onTileHover(displayedProjectsRef.current.find(project => project.slug === slug) ?? null)
         pendingMobileOpen.current = window.setTimeout(() => {
           pendingMobileOpen.current = null
           onTileClick(slug)
@@ -534,7 +504,6 @@ export default function Wall({
       const dy = (e.deltaY * scale * 0.65) / z
       cam.current.x += dx
       cam.current.y += dy
-      wrapCam()
       applyWorld()
       syncMountedProjectsForCamera(displayedProjectsRef.current)
       // Blend into velocity so the wall coasts after fast scrolling

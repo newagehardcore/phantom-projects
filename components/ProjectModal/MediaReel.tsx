@@ -15,6 +15,19 @@ const disArtPosters = new Map([
   ['/natural-gods', '/dis-art-natural-gods.webp'],
 ])
 
+function soundCloudTracks(project: WallProject) {
+  return [...new Set((project.watchOn ?? []).flatMap(({ url }) => {
+    if (!url) return []
+    try {
+      const track = new URL(url)
+      if (track.origin === 'https://soundcloud.com' && /^\/[\w-]+\/[\w-]+\/?$/.test(track.pathname)) {
+        return [track.origin + track.pathname.replace(/\/$/, '')]
+      }
+    } catch { /* Ignore invalid CMS URLs. */ }
+    return []
+  }))]
+}
+
 export function getProjectVideos(project: WallProject) {
   const videos: Array<{ key: string; item: Extract<MediaItemData, { kind: 'video' | 'externalVideo' }> }> = []
   const seen = new Set<string>()
@@ -55,6 +68,17 @@ export default function MediaReel({ project, videos }: MediaReelProps) {
 
       {(project.audio ?? []).map((audio) => (
         <MediaItem key={audio._key} kind="audio" data={audio} />
+      ))}
+
+      {soundCloudTracks(project).map(track => (
+        <iframe
+          key={track}
+          title={`${project.title} on SoundCloud`}
+          src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(track)}&auto_play=false&show_artwork=false&show_related=false`}
+          loading="lazy"
+          allow="autoplay"
+          style={{ display: 'block', width: '100%', height: 166, border: 0, marginBottom: 16 }}
+        />
       ))}
 
       {(project.photos ?? []).map((photo, i) => (

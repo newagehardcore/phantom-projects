@@ -112,8 +112,7 @@ function buildShuffledGrid(sorted: Project[], seed: number, rows: number, cols =
  *   every filtered project appears before any project is repeated.
  * - Every cell is filled (cycles when fewer projects than cells exist) so
  *   filtered views never leave empty columns.
- * - 2×2 period means camera wrapping by 2×singleSize lands on an identical
- *   arrangement, making the seam invisible.
+ * - The 2×2 pattern gives the wall a repeatable period on both axes.
  */
 export function layoutProjects(projects: Project[]): WallProject[] {
   if (!projects.length) return []
@@ -161,6 +160,32 @@ export function worldSize(projects: WallProject[]): { w: number; h: number } {
 export function initialCam(projects: WallProject[]): { x: number; y: number } {
   const { w, h } = worldSize(projects)
   return { x: w / 2, y: h / 2 }
+}
+
+export function visibleWallTiles(
+  projects: WallProject[],
+  { minX, maxX, minY, maxY }: { minX: number; maxX: number; minY: number; maxY: number },
+): WallProject[] {
+  if (!projects.length) return []
+  const size = worldSize(projects)
+  const periodWidth = 2 * (size.w + GAP) / H_COPIES
+  const periodHeight = 2 * (size.h + GAP) / V_COPIES
+  const pattern = projects.filter(project => project.x < periodWidth && project.y < periodHeight)
+  const visible: WallProject[] = []
+
+  // Keep the camera continuous. Each repeated tile keeps its own identity
+  // while it is mounted, including when the viewport crosses a period boundary.
+  for (let row = Math.floor(minY / periodHeight); row <= Math.floor(maxY / periodHeight); row++) {
+    for (let col = Math.floor(minX / periodWidth); col <= Math.floor(maxX / periodWidth); col++) {
+      for (const project of pattern) {
+        const x = project.x + col * periodWidth
+        const y = project.y + row * periodHeight
+        if (x + project.w < minX || x > maxX || y + project.h < minY || y > maxY) continue
+        visible.push({ ...project, id: `${project.id}@${row},${col}`, x, y })
+      }
+    }
+  }
+  return visible
 }
 
 export function getVisibleProjects(projects: WallProject[], filter: FilterType): WallProject[] {
