@@ -28,7 +28,7 @@ function soundCloudTracks(project: WallProject) {
   }))]
 }
 
-export function getProjectVideos(project: WallProject) {
+export function getProjectVideos(project: Pick<WallProject, 'watchOn' | 'title' | 'photos' | 'videos'>) {
   const videos: Array<{ key: string; item: Extract<MediaItemData, { kind: 'video' | 'externalVideo' }> }> = []
   const seen = new Set<string>()
   for (const link of project.watchOn ?? []) {
@@ -57,9 +57,14 @@ export function getProjectVideos(project: WallProject) {
 
 export default function MediaReel({ project, videos }: MediaReelProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const heroPhoto = videos.length === 0 ? project.photos?.[0] : undefined
+  const photoOffset = heroPhoto ? 1 : 0
+  const galleryPhotos = project.photos?.slice(photoOffset)
 
   return (
     <div className="modal-media-reel">
+      {heroPhoto && <MediaItem kind="photo" data={heroPhoto} index={0} onLightbox={setLightboxIndex} priority />}
+
       {videos.map(({ key, item }, index) => (
         <div key={key} className={index === 0 ? 'modal-reel-first-video' : undefined}>
           <MediaItem {...item} />
@@ -81,15 +86,19 @@ export default function MediaReel({ project, videos }: MediaReelProps) {
         />
       ))}
 
-      {(project.photos ?? []).map((photo, i) => (
-        <MediaItem
-          key={photo._key}
-          kind="photo"
-          data={photo}
-          index={i}
-          onLightbox={setLightboxIndex}
-        />
-      ))}
+      {!!galleryPhotos?.length && (
+        <div className={heroPhoto ? 'modal-photo-grid' : 'modal-photo-grid modal-photo-grid--no-hero'}>
+          {galleryPhotos.map((photo, i) => (
+            <MediaItem
+              key={photo._key}
+              kind="photo"
+              data={photo}
+              index={i + photoOffset}
+              onLightbox={setLightboxIndex}
+            />
+          ))}
+        </div>
+      )}
 
       {lightboxIndex !== null && (
         <Lightbox

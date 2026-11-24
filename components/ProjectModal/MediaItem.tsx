@@ -8,7 +8,7 @@ import type { PhotoAsset, VideoItem, AudioItem } from '@/lib/types'
 
 // Discriminated union passed to MediaItem so it knows which type to render
 export type MediaItemData =
-  | { kind: 'photo'; data: PhotoAsset; index: number; onLightbox: (index: number) => void }
+  | { kind: 'photo'; data: PhotoAsset; index: number; onLightbox: (index: number) => void; priority?: boolean }
   | { kind: 'video'; data: VideoItem }
   | { kind: 'externalVideo'; href: string; title: string; poster?: string }
   | { kind: 'audio'; data: AudioItem }
@@ -23,14 +23,15 @@ export default function MediaItem(props: MediaItemData) {
   }
 
   if (props.kind === 'photo') {
-    const { data, index, onLightbox } = props
+    const { data, index, onLightbox, priority } = props
     return (
       <div style={{ marginBottom: 16 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={data.url}
           alt={data.alt ?? ''}
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : undefined}
           onClick={() => onLightbox(index)}
           style={{
             display: 'block',

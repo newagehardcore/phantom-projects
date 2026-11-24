@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Wall from './Wall/Wall'
 import HUD from './HUD/HUD'
 import ProjectModal from './ProjectModal/ProjectModal'
+import { useProjectImagePreload } from './ProjectModal/useProjectImagePreload'
 import { layoutProjects } from '@/lib/wallUtils'
 import type { Project, WallProject, FilterType } from '@/lib/types'
 import { TILE_W, TILE_H } from '@/lib/wallUtils'
@@ -40,6 +41,9 @@ export default function MainScene({ projects }: MainSceneProps) {
   const [hoveredProject, setHoveredProject] = useState<WallProject | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [driftResetKey, setDriftResetKey] = useState(0)
+  const [initialThumbnailsSettled, setInitialThumbnailsSettled] = useState(false)
+  const handleInitialThumbnailsSettled = useCallback(() => setInitialThumbnailsSettled(true), [])
+  useProjectImagePreload(projects, initialThumbnailsSettled)
 
   // Re-layout whenever filter or search changes — results always tile to fill the wall
   const wallProjects = useMemo(() => {
@@ -149,6 +153,7 @@ export default function MainScene({ projects }: MainSceneProps) {
         driftResetKey={driftResetKey}
         onTileClick={openProject}
         onTileHover={setHoveredProject}
+        onInitialThumbnailsSettled={handleInitialThumbnailsSettled}
       />
       <HUD
         activeFilter={activeFilter}

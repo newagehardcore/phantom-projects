@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
 import MediaReel, { getProjectVideos } from './MediaReel'
 import MediaItem from './MediaItem'
-import ModalIcon from './ModalIcon'
+import ModalToolbar from './ModalToolbar'
 import type { WallProject, LinkedItem } from '@/lib/types'
 import type { FilterType } from '@/lib/types'
 
@@ -76,7 +76,7 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
   }, [close, onPrevious, onNext])
 
   useEffect(() => {
-    modalRef.current?.querySelectorAll('.project-modal-card, .modal-info, .modal-media').forEach(panel => panel.scrollTo(0, 0))
+    modalRef.current?.querySelector('.project-modal-card')?.scrollTo(0, 0)
   }, [project.id])
 
   // Focus trap
@@ -123,88 +123,55 @@ export default function ProjectModal({ project, onClose, onFilter, onPrevious, o
           aria-label={`Project: ${project.title}`}
           className="project-modal-frame" style={{ visibility: prefersReducedMotion ? 'visible' : 'hidden' }}
         >
-          <button ref={closeBtnRef} type="button" onClick={close} aria-label="Close project" className="modal-edge-control modal-close-control">
-            <ModalIcon icon="close" />
-          </button>
-          <button type="button" onClick={onPrevious} disabled={!onPrevious} aria-label="Previous project by date" className="modal-edge-control modal-previous-control">
-            <ModalIcon icon="previous" />
-          </button>
-          <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next project by date" className="modal-edge-control modal-next-control">
-            <ModalIcon icon="next" />
-          </button>
+          <ModalToolbar
+            closeRef={closeBtnRef}
+            closeLabel="Close project"
+            navigationLabel="Project navigation"
+            previousLabel="Previous project by date"
+            nextLabel="Next project by date"
+            onClose={close}
+            onPrevious={onPrevious}
+            onNext={onNext}
+          />
 
-          <div
-            className="project-modal-card"
-          >
+          <div className="project-modal-card">
+            <header className="modal-heading">
+              <div>
+                <h2 className="project-modal-title">{project.title}</h2>
+                {subtitle && (
+                  <p className="modal-subtitle">
+                    {project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
+                    {project.subtitleUrl ? (
+                      <a href={project.subtitleUrl} target="_blank" rel="noopener noreferrer">{subtitle}</a>
+                    ) : subtitle}
+                  </p>
+                )}
+              </div>
+              {date && <p className="modal-credit-date">{date}</p>}
+            </header>
+
             {featuredVideo && (
               <div className="mobile-featured-video">
                 <MediaItem key={featuredVideo.key} {...featuredVideo.item} />
               </div>
             )}
 
-            {/* Left: info */}
-            <div
-              className="modal-info"
-            >
+            <div className="modal-info">
+              <dl className="modal-metadata">
+                {!!project.collaborators?.length && <MetaLinks label="With" items={project.collaborators} />}
+                {!!project.roles?.length && <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />}
+                {!!project.type.length && <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />}
+                {!!project.presentedAt?.length && <MetaLinks label="Presented at" items={project.presentedAt} />}
+                {!!project.press?.length && <MetaLinks label="Press" items={project.press} />}
+                {!!project.watchOn?.length && <MetaLinks label="Watch" items={project.watchOn} />}
+                {!!project.links?.length && (
+                  <MetaLinks label="Links" items={project.links.map(({ label, url }) => ({ name: label, url }))} />
+                )}
+              </dl>
 
-            {/* Title */}
-            <h2 className="project-modal-title">
-              {project.title}
-            </h2>
-
-            {subtitle && (
-              <p className="modal-subtitle">
-                {project.subtitleType && project.subtitleType !== 'None' && <>{project.subtitleType}{' '}</>}
-                {project.subtitleUrl ? (
-                  <a
-                    href={project.subtitleUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                  >
-                    {subtitle}
-                  </a>
-                ) : subtitle}
-              </p>
-            )}
-            {date && <p className="modal-credit-date">{date}</p>}
-
-            <dl className="modal-metadata">
-              {!!project.collaborators?.length && <MetaLinks label="With" items={project.collaborators} />}
-              {!!project.roles?.length && <MetaFilter label="Role" items={project.roles} onSelect={role => onFilter({ role })} />}
-              {!!project.presentedAt?.length && <MetaLinks label="At" items={project.presentedAt} />}
-              {!!project.press?.length && <MetaLinks label="Press" items={project.press} />}
-              {!!project.watchOn?.length && <MetaLinks label="Watch" items={project.watchOn} />}
-              {!!project.type.length && <MetaFilter label="Type" items={project.type} onSelect={type => onFilter(type as FilterType)} />}
-            </dl>
-
-            {/* Description */}
-            {project.description && (
-              <p className="modal-description">
-                {project.description}
-              </p>
-            )}
-
-            {(project.links ?? []).length > 0 && (
-              <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(project.links ?? []).map((link, i) => (
-                  <a
-                    key={i}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 12, color: '#fff', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            )}
+              {project.description && <p className="modal-description">{project.description}</p>}
             </div>
 
-            {/* Right: media */}
             <div className="modal-media">
               <MediaReel key={project.id} project={project} videos={videos} />
             </div>
@@ -221,7 +188,7 @@ function MetaFilter({ label, items, onSelect }: { label: string; items: string[]
       <dt>{label}</dt>
       <dd>{items.map((item, i) => (
         <span key={item}>
-          {i > 0 && <span className="modal-meta-separator"> / </span>}
+          {i > 0 && <span>, </span>}
           <button type="button" onClick={() => onSelect(item)}>{item}</button>
         </span>
       ))}</dd>
@@ -233,9 +200,8 @@ function MetaLinks({ label, items }: { label: string; items: LinkedItem[] }) {
   return (
     <div className="modal-meta-row">
       <dt>{label}</dt>
-      <dd>{items.map((item, i) => (
+      <dd className="modal-meta-links">{items.map((item, i) => (
         <span key={`${item.name}-${item.url ?? ''}-${i}`}>
-          {i > 0 && <span className="modal-meta-separator"> / </span>}
           {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.name}</a> : item.name}
         </span>
       ))}</dd>

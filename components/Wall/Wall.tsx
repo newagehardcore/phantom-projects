@@ -13,6 +13,7 @@ interface WallProps {
   driftResetKey: number
   onTileClick: (slug: string) => void
   onTileHover: (project: WallProject | null) => void
+  onInitialThumbnailsSettled: () => void
 }
 
 const TAP_MAX_DIST = 8
@@ -32,7 +33,7 @@ function wallLayoutKey(projects: WallProject[]) {
 }
 
 export default function Wall({
-  projects, isModalOpen, driftResetKey, onTileClick, onTileHover,
+  projects, isModalOpen, driftResetKey, onTileClick, onTileHover, onInitialThumbnailsSettled,
 }: WallProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
@@ -391,6 +392,30 @@ export default function Wall({
       gsap.fromTo(stageRef.current, { opacity: 0 }, { opacity: 1, duration: 0.9, ease: 'power2.out' })
     }
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!ready || !worldRef.current) return
+
+    let disposed = false
+    const thumbnails = [...worldRef.current.querySelectorAll<HTMLImageElement>('img[src]')].filter(image => {
+      const rect = image.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0
+        && rect.left < window.innerWidth && rect.top < window.innerHeight
+    })
+
+    // Lazy thumbnails can leave the viewport while the wall drifts.
+    const finish = () => {
+      window.clearTimeout(deadline)
+      if (!disposed) onInitialThumbnailsSettled()
+    }
+    const deadline = window.setTimeout(finish, 5000)
+    void Promise.allSettled(thumbnails.map(image => image.decode())).then(finish)
+
+    return () => {
+      disposed = true
+      window.clearTimeout(deadline)
+    }
+  }, [ready, onInitialThumbnailsSettled])
 
 
   // ── Hover readout ─────────────────────────────────────────────────────────

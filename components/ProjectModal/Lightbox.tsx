@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { gsap } from 'gsap'
 import { createPortal } from 'react-dom'
-import ModalIcon from './ModalIcon'
+import ModalToolbar from './ModalToolbar'
 import type { PhotoAsset } from '@/lib/types'
 
 interface LightboxProps {
@@ -51,7 +51,8 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
       className="project-media-lightbox"
       onKeyDown={(e) => {
         if (e.key !== 'Tab') return
-        const controls = e.currentTarget.querySelectorAll<HTMLButtonElement>('button')
+        e.stopPropagation()
+        const controls = e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')
         const first = controls[0]
         const last = controls[controls.length - 1]
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
@@ -60,67 +61,27 @@ export default function Lightbox({ photos, index, onClose, onNav }: LightboxProp
       onClick={(event) => {
         if (event.target === event.currentTarget) close()
       }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        visibility: 'hidden',
-      }}
+      style={{ visibility: 'hidden' }}
       aria-modal
       role="dialog"
       aria-label="Image lightbox"
     >
-      {/* Prev */}
-      {index > 0 && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onNav(index - 1) }}
-          aria-label="Previous image"
-          className="modal-edge-control lightbox-previous"
-        >
-          <ModalIcon icon="previous" />
-        </button>
-      )}
-
-      {/* Image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={photo.url}
-        alt={photo.alt ?? ''}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: '90vw',
-          maxHeight: '90vh',
-          objectFit: 'contain',
-          display: 'block',
-        }}
-      />
-
-      {/* Next */}
-      {index < photos.length - 1 && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onNav(index + 1) }}
-          aria-label="Next image"
-          className="modal-edge-control lightbox-next"
-        >
-          <ModalIcon icon="next" />
-        </button>
-      )}
-
-      {/* Close */}
-      <button
-        type="button"
-        onClick={close}
-        aria-label="Close lightbox"
-        ref={closeBtnRef}
-        className="modal-edge-control modal-close-control lightbox-close"
-      >
-        <ModalIcon icon="close" />
-      </button>
+      <div className="lightbox-panel">
+        <ModalToolbar
+          closeRef={closeBtnRef}
+          closeLabel="Close lightbox"
+          navigationLabel="Image navigation"
+          previousLabel="Previous image"
+          nextLabel="Next image"
+          onClose={close}
+          onPrevious={index > 0 ? () => onNav(index - 1) : undefined}
+          onNext={index < photos.length - 1 ? () => onNav(index + 1) : undefined}
+        />
+        <div className="lightbox-image-stage">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.url} alt={photo.alt ?? ''} />
+        </div>
+      </div>
     </div>,
     document.body
   )
